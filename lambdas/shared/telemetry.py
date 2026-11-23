@@ -15,6 +15,9 @@ _RATES = {
     "anthropic.claude-3-5-sonnet-20241022-v2:0": (0.006, 0.03),
     # Estimated Sonnet-tier rates per 1K tokens; check current Bedrock pricing.
     "us.anthropic.claude-sonnet-4-6": (0.003, 0.015),
+    "us.anthropic.claude-haiku-4-5-20251001-v1:0": (0.001, 0.005),
+    # Estimated per-1K-token rate; confirm against current Bedrock pricing.
+    "us.amazon.nova-pro-v1:0": (0.0008, 0.0032),
     "amazon.titan-embed-text-v2:0": (0.00002, 0.0),
 }
 

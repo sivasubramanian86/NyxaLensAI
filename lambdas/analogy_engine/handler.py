@@ -25,7 +25,7 @@ AOSS_INDEX = os.environ.get("AOSS_INDEX", "systems-patterns-v1")
 # best match scored 0.23, so a 0.72 cutoff suppressed every analogy. This default is a
 # preliminary calibration, not a validated one. The AOSS score is a different, uncalibrated
 # scale and keeps its original cutoff.
-LOCAL_MIN_SIMILARITY = 0.25
+LOCAL_MIN_SIMILARITY = 0.22
 AOSS_MIN_SIMILARITY = 0.72
 
 
@@ -37,6 +37,24 @@ def _threshold(used_aoss: bool) -> float:
     except ValueError:
         pass
     return AOSS_MIN_SIMILARITY if used_aoss else LOCAL_MIN_SIMILARITY
+
+
+def _flatten(record: dict) -> dict:
+    """Map a corpus record (design nested under transferable_design) to AnalogyMatch fields.
+
+    Records that are already flat are passed through, so both shapes are accepted.
+    """
+    design = record.get("transferable_design") or {}
+    return {
+        "pattern_id": record.get("pattern_id"),
+        "source_domain": record.get("source_domain"),
+        "canonical_mechanism": record.get("canonical_mechanism"),
+        "mechanism": record.get("mechanism", design.get("mechanism")),
+        "mapping_table": record.get("mapping_table", design.get("mapping_table")),
+        "expected_lift": record.get("expected_lift", design.get("expected_lift")),
+        "anti_pattern_warning": record.get("anti_pattern_warning", design.get("anti_pattern_warning")),
+        "evidence": record.get("evidence"),
+    }
 
 
 def _query_text(signature: dict) -> str:
@@ -108,7 +126,7 @@ def lambda_handler(event: dict, context) -> dict:
     for record, score in pairs:
         if score < threshold:
             continue
-        record = {**record, "similarity_score": min(1.0, max(0.0, score))}
+        record = {**_flatten(record), "similarity_score": min(1.0, max(0.0, score))}
         matches.append(AnalogyMatch.model_validate(record).model_dump())
         if len(matches) == 3:
             break

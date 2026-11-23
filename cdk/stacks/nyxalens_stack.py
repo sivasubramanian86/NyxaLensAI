@@ -70,7 +70,11 @@ class LocalLambdaBundler:
 COLLECTION_NAME = "nyxalens-patterns"
 AOSS_INDEX      = "systems-patterns-v1"
 LITE_MODEL_ID   = "amazon.nova-lite-v1:0"
-SONNET_MODEL_ID = "us.anthropic.claude-sonnet-4-6"  # cross-region inference profile (us-east-1)
+# Synthesis model. Amazon Nova Pro is the default because it was reliably callable in the
+# deployment account. Anthropic models need an approved use-case form per account (Claude 5.5
+# was not offered to it, and 4.x calls were intermittently rejected). To use Claude instead:
+#   cdk deploy -c synthesis_model=us.anthropic.claude-sonnet-4-6
+DEFAULT_SYNTHESIS_MODEL_ID = "us.amazon.nova-pro-v1:0"
 EMBED_MODEL_ID  = "amazon.titan-embed-text-v2:0"
 
 
@@ -208,7 +212,7 @@ class NyxaLensStack(Stack):
             "AOSS_ENDPOINT":    pattern_collection.attr_collection_endpoint if pattern_collection else "",
             "AOSS_INDEX":       AOSS_INDEX,
             "LITE_MODEL_ID":    LITE_MODEL_ID,
-            "SONNET_MODEL_ID":  SONNET_MODEL_ID,
+            "SONNET_MODEL_ID":  self.node.try_get_context("synthesis_model") or DEFAULT_SYNTHESIS_MODEL_ID,
             "EMBED_MODEL_ID":   EMBED_MODEL_ID,
             "GITHUB_SECRET_ARN": github_secret.secret_arn,
             "SESSION_MEMORY_TABLE": session_memory_table.table_name,

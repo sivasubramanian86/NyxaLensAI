@@ -38,7 +38,7 @@ NyxaLensAI does not modify scanned repositories, establish trademark rights, pro
 | Grounding and scoring | Remove URLs absent from raw discovery evidence; calculate deterministic and rubric points |
 | Persistence | Store scan and dossier in DynamoDB; raw evidence in S3 |
 
-Models configured in the CDK stack: `amazon.nova-lite-v1:0`, `us.anthropic.claude-sonnet-4-6` (cross-region inference profile), and `amazon.titan-embed-text-v2:0`. Confirm model access in your selected AWS region before deployment.
+Models configured in the CDK stack: `amazon.nova-lite-v1:0`, `us.amazon.nova-pro-v1:0` for synthesis by default (override with `-c synthesis_model=us.anthropic.claude-sonnet-4-6` if your account has approved Anthropic access), and `amazon.titan-embed-text-v2:0`. Confirm model access in your selected AWS region before deployment.
 
 ## Quick start: local checks and demos
 
