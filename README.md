@@ -45,7 +45,7 @@ Models configured in the CDK stack: `amazon.nova-lite-v1:0`, `anthropic.claude-3
 ### Requirements
 
 - Python 3.12
-- Node.js 20 or newer
+- Node.js 22 or newer
 - `make` (or equivalent commands from the Makefile)
 - Docker for CDK Lambda asset bundling during synth/deploy
 

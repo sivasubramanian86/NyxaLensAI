@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import os
 from aws_cdk import (
-    Stack, Duration, RemovalPolicy, CfnOutput,
+    Stack, Duration, RemovalPolicy, CfnOutput, BundlingOptions,
     aws_dynamodb as dynamodb,
     aws_s3 as s3,
     aws_lambda as _lambda,
@@ -173,7 +173,7 @@ class NyxaLensStack(Stack):
                 handler=f"{folder}.handler.lambda_handler",
                 code=_lambda.Code.from_asset(
                     "../",
-                    bundling=_lambda.BundlingOptions(
+                    bundling=BundlingOptions(
                         image=_lambda.Runtime.PYTHON_3_12.bundling_image,
                         command=["bash", "-c", "pip install -r /asset-input/lambdas/requirements.txt --no-compile -t /asset-output && cp -a /asset-input/lambdas/. /asset-output/ && cp -a /asset-input/data /asset-output/data"],
                     ),
