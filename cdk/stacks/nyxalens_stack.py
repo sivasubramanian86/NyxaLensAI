@@ -5,8 +5,14 @@ Topology: Orchestrator → 4 Parallel Discovery Lanes → Sequential Enhancement
 from __future__ import annotations
 
 import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+import jsii
 from aws_cdk import (
-    Stack, Duration, RemovalPolicy, CfnOutput, BundlingOptions,
+    Stack, Duration, RemovalPolicy, CfnOutput, BundlingOptions, ILocalBundling,
     aws_dynamodb as dynamodb,
     aws_s3 as s3,
     aws_lambda as _lambda,
@@ -20,10 +26,51 @@ from aws_cdk import (
 from constructs import Construct
 
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+ASSET_EXCLUDES = [
+    ".git", ".github", ".kiro", ".agents", ".codegraph", ".venv", "venv", "cdk", "frontend",
+    "tests", "docs", "node_modules", "__pycache__", "*.pyc", ".pytest_cache", ".ruff_cache",
+    "cdk.out", "*.md", "Makefile", "amplify.yml",
+]
+
+
+@jsii.implements(ILocalBundling)
+class LocalLambdaBundler:
+    """Bundle Lambda code without Docker: pip-install Linux wheels, then copy code + data."""
+
+    def try_bundle(self, output_dir: str, *args, **kwargs) -> bool:
+        try:
+            out = Path(output_dir)
+            reqs = [
+                line.strip()
+                for line in (REPO_ROOT / "lambdas" / "requirements.txt").read_text().splitlines()
+                if line.strip() and not line.startswith("#")
+            ]
+            # Metaphone ships only as a pure-Python sdist; install it separately.
+            wheel_reqs = [r for r in reqs if not r.lower().startswith("metaphone")]
+            pure_reqs = [r for r in reqs if r.lower().startswith("metaphone")]
+            base = [sys.executable, "-m", "pip", "install", "--no-compile", "--upgrade", "-t", str(out)]
+            subprocess.run(
+                base + ["--platform", "manylinux2014_x86_64", "--implementation", "cp",
+                        "--python-version", "3.12", "--only-binary=:all:"] + wheel_reqs,
+                check=True,
+            )
+            if pure_reqs:
+                subprocess.run(base + ["--no-deps"] + pure_reqs, check=True)
+            shutil.copytree(REPO_ROOT / "lambdas", out, dirs_exist_ok=True,
+                            ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+            shutil.copytree(REPO_ROOT / "data", out / "data", dirs_exist_ok=True)
+            return True
+        except Exception as exc:  # fall back to Docker bundling
+            print(f"Local bundling failed ({exc}); falling back to Docker.")
+            return False
+
+
 COLLECTION_NAME = "nyxalens-patterns"
 AOSS_INDEX      = "systems-patterns-v1"
 LITE_MODEL_ID   = "amazon.nova-lite-v1:0"
-SONNET_MODEL_ID = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+SONNET_MODEL_ID = "us.anthropic.claude-sonnet-4-6"  # cross-region inference profile (us-east-1)
 EMBED_MODEL_ID  = "amazon.titan-embed-text-v2:0"
 
 
@@ -73,36 +120,43 @@ class NyxaLensStack(Stack):
             self, "GitHubTokenSecret", "nyxalens/github-token"
         )
 
-        # ── 4. Amazon OpenSearch Serverless collection ────────────────────
-        enc_policy = aoss.CfnSecurityPolicy(
-            self, "PatternEncryptionPolicy",
-            name=f"{COLLECTION_NAME}-enc",
-            type="encryption",
-            policy=(
-                f'{{"Rules":[{{"ResourceType":"collection",'
-                f'"Resource":["collection/{COLLECTION_NAME}"]}}],'
-                f'"AWSOwnedKey":true}}'
-            ),
-        )
-        net_policy = aoss.CfnSecurityPolicy(
-            self, "PatternNetworkPolicy",
-            name=f"{COLLECTION_NAME}-net",
-            type="network",
-            policy=(
-                f'[{{"Rules":[{{"ResourceType":"collection",'
-                f'"Resource":["collection/{COLLECTION_NAME}"]}},'
-                f'{{"ResourceType":"dashboard","Resource":["collection/{COLLECTION_NAME}"]}}],'
-                f'"AllowFromPublic":true}}]'
-            ),
-        )
-        pattern_collection = aoss.CfnCollection(
-            self, "PatternCollection",
-            name=COLLECTION_NAME,
-            type="VECTORSEARCH",
-            description="NyxaLensAI 20-pattern cross-domain systems ontology",
-        )
-        pattern_collection.add_dependency(enc_policy)
-        pattern_collection.add_dependency(net_policy)
+        # ── 4. Amazon OpenSearch Serverless collection (OPTIONAL) ─────────
+        # AOSS bills a minimum of roughly $175-350/month while it exists.
+        # It is OFF by default: the analogy lane then uses the local vector
+        # fallback (data/patterns_20_embedded.json). Enable with:
+        #   cdk deploy -c enable_aoss=true
+        enable_aoss = str(self.node.try_get_context("enable_aoss") or "false").lower() == "true"
+        pattern_collection = None
+        if enable_aoss:
+            enc_policy = aoss.CfnSecurityPolicy(
+                self, "PatternEncryptionPolicy",
+                name=f"{COLLECTION_NAME}-enc",
+                type="encryption",
+                policy=(
+                    f'{{"Rules":[{{"ResourceType":"collection",'
+                    f'"Resource":["collection/{COLLECTION_NAME}"]}}],'
+                    f'"AWSOwnedKey":true}}'
+                ),
+            )
+            net_policy = aoss.CfnSecurityPolicy(
+                self, "PatternNetworkPolicy",
+                name=f"{COLLECTION_NAME}-net",
+                type="network",
+                policy=(
+                    f'[{{"Rules":[{{"ResourceType":"collection",'
+                    f'"Resource":["collection/{COLLECTION_NAME}"]}},'
+                    f'{{"ResourceType":"dashboard","Resource":["collection/{COLLECTION_NAME}"]}}],'
+                    f'"AllowFromPublic":true}}]'
+                ),
+            )
+            pattern_collection = aoss.CfnCollection(
+                self, "PatternCollection",
+                name=COLLECTION_NAME,
+                type="VECTORSEARCH",
+                description="NyxaLensAI 20-pattern cross-domain systems ontology",
+            )
+            pattern_collection.add_dependency(enc_policy)
+            pattern_collection.add_dependency(net_policy)
 
         # ── 5. Shared Lambda execution role (least-privilege) ─────────────
         agent_role = iam.Role(
@@ -119,10 +173,11 @@ class NyxaLensStack(Stack):
             actions=["bedrock:InvokeModel"],
             resources=["*"],
         ))
-        agent_role.add_to_policy(iam.PolicyStatement(
-            actions=["aoss:APIAccessAll"],
-            resources=[pattern_collection.attr_arn],
-        ))
+        if pattern_collection is not None:
+            agent_role.add_to_policy(iam.PolicyStatement(
+                actions=["aoss:APIAccessAll"],
+                resources=[pattern_collection.attr_arn],
+            ))
         scans_table.grant_read_write_data(agent_role)
         session_memory_table.grant_read_write_data(agent_role)
         evidence_bucket.grant_read_write(agent_role)
@@ -130,26 +185,27 @@ class NyxaLensStack(Stack):
         # Grant GitHub secret read to the 3 Lambdas that call GitHub API
         # (done individually after Lambda creation below)
 
-        # OpenSearch data access policy
-        aoss.CfnAccessPolicy(
-            self, "PatternDataAccessPolicy",
-            name=f"{COLLECTION_NAME}-data",
-            type="data",
-            policy=(
-                f'[{{"Rules":['
-                f'{{"ResourceType":"index","Resource":["index/{COLLECTION_NAME}/*"],'
-                f'"Permission":["aoss:*"]}},'
-                f'{{"ResourceType":"collection","Resource":["collection/{COLLECTION_NAME}"],'
-                f'"Permission":["aoss:*"]}}],'
-                f'"Principal":["{agent_role.role_arn}"]}}]'
-            ),
-        )
+        # OpenSearch data access policy (only when AOSS is enabled)
+        if pattern_collection is not None:
+            aoss.CfnAccessPolicy(
+                self, "PatternDataAccessPolicy",
+                name=f"{COLLECTION_NAME}-data",
+                type="data",
+                policy=(
+                    f'[{{"Rules":['
+                    f'{{"ResourceType":"index","Resource":["index/{COLLECTION_NAME}/*"],'
+                    f'"Permission":["aoss:*"]}},'
+                    f'{{"ResourceType":"collection","Resource":["collection/{COLLECTION_NAME}"],'
+                    f'"Permission":["aoss:*"]}}],'
+                    f'"Principal":["{agent_role.role_arn}"]}}]'
+                ),
+            )
 
         # ── 6. Shared environment for all Lambdas ─────────────────────────
         shared_env = {
             "SCANS_TABLE":      scans_table.table_name,
             "EVIDENCE_BUCKET":  evidence_bucket.bucket_name,
-            "AOSS_ENDPOINT":    pattern_collection.attr_collection_endpoint,
+            "AOSS_ENDPOINT":    pattern_collection.attr_collection_endpoint if pattern_collection else "",
             "AOSS_INDEX":       AOSS_INDEX,
             "LITE_MODEL_ID":    LITE_MODEL_ID,
             "SONNET_MODEL_ID":  SONNET_MODEL_ID,
@@ -172,8 +228,10 @@ class NyxaLensStack(Stack):
                 runtime=_lambda.Runtime.PYTHON_3_12,
                 handler=f"{folder}.handler.lambda_handler",
                 code=_lambda.Code.from_asset(
-                    "../",
+                    str(REPO_ROOT),
+                    exclude=ASSET_EXCLUDES,
                     bundling=BundlingOptions(
+                        local=LocalLambdaBundler(),
                         image=_lambda.Runtime.PYTHON_3_12.bundling_image,
                         command=["bash", "-c", "pip install -r /asset-input/lambdas/requirements.txt --no-compile -t /asset-output && cp -a /asset-input/lambdas/. /asset-output/ && cp -a /asset-input/data /asset-output/data"],
                     ),
@@ -280,9 +338,10 @@ class NyxaLensStack(Stack):
         CfnOutput(self, "ApiEndpointUrl",
                    value=api.url,
                    description="Set as NEXT_PUBLIC_API_URL in Amplify")
-        CfnOutput(self, "OpenSearchEndpoint",
-                   value=pattern_collection.attr_collection_endpoint,
-                   description="Set as AOSS_ENDPOINT for seed_opensearch.py")
+        if pattern_collection is not None:
+            CfnOutput(self, "OpenSearchEndpoint",
+                       value=pattern_collection.attr_collection_endpoint,
+                       description="Set as AOSS_ENDPOINT for seed_opensearch.py")
         CfnOutput(self, "StateMachineArn",
                    value=state_machine.state_machine_arn)
         CfnOutput(self, "ScansTableName",

@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 _RATES = {
     "amazon.nova-lite-v1:0": (0.00006, 0.00024),
     "anthropic.claude-3-5-sonnet-20241022-v2:0": (0.006, 0.03),
+    # Estimated Sonnet-tier rates per 1K tokens; check current Bedrock pricing.
+    "us.anthropic.claude-sonnet-4-6": (0.003, 0.015),
     "amazon.titan-embed-text-v2:0": (0.00002, 0.0),
 }
 

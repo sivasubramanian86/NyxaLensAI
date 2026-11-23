@@ -25,7 +25,7 @@ MOCK_TOOL_USE_RESPONSE = {
     "output": {
         "message": {
             "content": [
-                {"type": "tool_use", "name": "my_tool", "input": {"result": "ok"}}
+                {"toolUse": {"toolUseId": "t1", "name": "my_tool", "input": {"result": "ok"}}}
             ]
         }
     }

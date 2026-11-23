@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # Model IDs — override via environment variables for testing
 LITE_MODEL_ID   = os.environ.get("LITE_MODEL_ID",   "amazon.nova-lite-v1:0")
-SONNET_MODEL_ID = os.environ.get("SONNET_MODEL_ID",  "anthropic.claude-3-5-sonnet-20241022-v2:0")
+SONNET_MODEL_ID = os.environ.get("SONNET_MODEL_ID",  "us.anthropic.claude-sonnet-4-6")
 EMBED_MODEL_ID  = os.environ.get("EMBED_MODEL_ID",   "amazon.titan-embed-text-v2:0")
 
 _MAX_RETRIES = 3
@@ -87,15 +87,18 @@ def invoke_sonnet_json(prompt: str, tool_schema: dict, system: str = "",
         tools=[{"toolSpec": tool_schema}],
         max_tokens=max_tokens,
     )
-    # Extract the tool_use block
-    for block in response["output"]["message"]["content"]:
-        if block.get("type") == "tool_use" and block.get("name") == tool_name:
-            return block["input"]
-    # Fallback: try to parse text as JSON
-    for block in response["output"]["message"]["content"]:
-        if block.get("type") == "text":
+    content = response["output"]["message"]["content"]
+    # The Converse API returns tool calls as {"toolUse": {"name", "input", ...}}.
+    for block in content:
+        tool_use = block.get("toolUse")
+        if tool_use and tool_use.get("name") == tool_name:
+            return tool_use["input"]
+    # Fallback: try to parse a plain text block as JSON
+    for block in content:
+        text = block.get("text")
+        if text:
             try:
-                return json.loads(block["text"])
+                return json.loads(text)
             except json.JSONDecodeError:
                 pass
     raise ValueError(f"No structured tool_use block returned by {SONNET_MODEL_ID}")
