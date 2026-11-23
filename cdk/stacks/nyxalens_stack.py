@@ -125,7 +125,7 @@ class NyxaLensStack(Stack):
         ))
         scans_table.grant_read_write_data(agent_role)
         session_memory_table.grant_read_write_data(agent_role)
-        evidence_bucket.grant_read_write_data(agent_role)
+        evidence_bucket.grant_read_write(agent_role)
 
         # Grant GitHub secret read to the 3 Lambdas that call GitHub API
         # (done individually after Lambda creation below)
