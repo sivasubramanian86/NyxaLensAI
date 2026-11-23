@@ -37,6 +37,9 @@ data/patterns_20_embedded.json
 docs/BUILDER_CENTER_ARTICLE.md
 docs/images/nyxalens-hero.png
 docs/images/cross-domain-pattern-transfer.png
+docs/images/article-*.svg
+docs/images/nyxalens-implementation-hero.png
+docs/images/cross-domain-fault-transfer.png
 
 # IDE
 .vscode/
@@ -46,3 +49,6 @@ docs/images/cross-domain-pattern-transfer.png
 # OS
 .DS_Store
 Thumbs.db
+
+# Local tooling index
+.codegraph/
