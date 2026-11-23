@@ -1,0 +1,562 @@
+[
+  {
+    "pattern_id": "PAT-001",
+    "source_domain": "Telecom Signaling",
+    "canonical_mechanism": "SS7 Circuit Breaker with Half-Open Semantic Probe",
+    "problem_signature": {
+      "state_space": "sequential_tool_calls",
+      "bottleneck_type": "repetitive_failure_loop",
+      "failure_mode": "semantic_state_hash_collision",
+      "consistency_model": "eventual"
+    },
+    "trigger_condition": {
+      "detected_when": "cosine_similarity between consecutive tool outputs > 0.94 over N=3 hops"
+    },
+    "transferable_design": {
+      "mechanism": "Hash normalized tool inputs and outputs per turn; trip a HALF_OPEN circuit breaker when repetition threshold is crossed, forcing a strategy shift.",
+      "mapping_table": [
+        {"source_primitive": "signaling_link_status", "target_repo_module": "agent_loop.py", "expected_effect": "Halts infinite retry loops by detecting semantic stalls"},
+        {"source_primitive": "half_open_test_message", "target_repo_module": "strategy_router.py", "expected_effect": "Forces pivot to alternative tool or strategy after stall"}
+      ],
+      "expected_lift": "Cuts LLM token burn by 60-85% on stalled tool-calling loops",
+      "anti_pattern_warning": "Do not apply to legitimate multi-page pagination where payload structure is intentionally repetitive."
+    },
+    "evidence": {
+      "standard": "ITU-T Q.704 (SS7 Message Transfer Part)",
+      "reference_url": "https://www.itu.int/rec/T-REC-Q.704",
+      "measurement_status": "ESTIMATED"
+    }
+  },
+  {
+    "pattern_id": "PAT-002",
+    "source_domain": "Telecom & Network Traffic Engineering",
+    "canonical_mechanism": "Token-Bucket Rate & Cost Shaping (Policing + Diffserv Marking)",
+    "problem_signature": {
+      "state_space": "bursty_llm_invocations",
+      "bottleneck_type": "unbounded_token_spend",
+      "failure_mode": "rate_limit_429_cascade",
+      "consistency_model": "strict_quota"
+    },
+    "trigger_condition": {
+      "detected_when": "fan-out subagents issue concurrent LLM/API calls without per-session token budgets"
+    },
+    "transferable_design": {
+      "mechanism": "Assign each session a leaky token bucket initialized with max token/dollar credits; downgrade to a cheaper model (Nova Lite) when burst capacity is exhausted rather than hard-failing.",
+      "mapping_table": [
+        {"source_primitive": "committed_burst_size", "target_repo_module": "bedrock_client.py", "expected_effect": "Caps per-request token spend at session budget"},
+        {"source_primitive": "traffic_policer", "target_repo_module": "model_selector.py", "expected_effect": "Gracefully degrades to Nova Lite when Sonnet budget is exhausted"}
+      ],
+      "expected_lift": "Reduces runaway API spend and 429 throttling cascades during parallel fan-out",
+      "anti_pattern_warning": "Avoid dropping below minimum context tokens required for structured JSON output."
+    },
+    "evidence": {
+      "standard": "IETF RFC 2475 (An Architecture for Differentiated Services)",
+      "reference_url": "https://datatracker.ietf.org/doc/html/rfc2475",
+      "measurement_status": "ESTIMATED"
+    }
+  },
+  {
+    "pattern_id": "PAT-003",
+    "source_domain": "Telecom Fault Management",
+    "canonical_mechanism": "ITU-T X.733 Alarm Correlation & Root-Cause Topology Clustering",
+    "problem_signature": {
+      "state_space": "directed_dependency_graph",
+      "bottleneck_type": "cascading_downstream_failures",
+      "failure_mode": "n_squared_alert_or_heal_amplification",
+      "consistency_model": "causal"
+    },
+    "trigger_condition": {
+      "detected_when": "multiple tests, microservices, or agent tasks fail simultaneously from a shared upstream mutation"
+    },
+    "transferable_design": {
+      "mechanism": "Suppress downstream symptom errors by grouping failures by shared dependency/DOM root node; invoke remediation once at the root rather than once per symptom.",
+      "mapping_table": [
+        {"source_primitive": "correlated_alarm_set", "target_repo_module": "failure_clusterer.py", "expected_effect": "Deduplicates 500 broken CI tests to 3 root-cause DOM mutations"},
+        {"source_primitive": "probable_cause_pointer", "target_repo_module": "remediation_agent.py", "expected_effect": "Single Bedrock call heals shared fixture instead of one per test"}
+      ],
+      "expected_lift": "Reduces redundant LLM remediation calls by 70-85% during cascading failures",
+      "anti_pattern_warning": "Do not cluster unrelated failures when failure timestamps span distinct deployment windows."
+    },
+    "evidence": {
+      "standard": "ITU-T X.733 (Alarm Reporting Function)",
+      "reference_url": "https://www.itu.int/rec/T-REC-X.733",
+      "measurement_status": "ESTIMATED"
+    }
+  },
+  {
+    "pattern_id": "PAT-004",
+    "source_domain": "Telecom Signaling",
+    "canonical_mechanism": "SIGTRAN SCTP Multi-Homing & Stream Isolation",
+    "problem_signature": {
+      "state_space": "multi_lane_external_io",
+      "bottleneck_type": "head_of_line_blocking",
+      "failure_mode": "single_slow_api_stalls_pipeline",
+      "consistency_model": "independent_streams"
+    },
+    "trigger_condition": {
+      "detected_when": "multiple external APIs (GitHub, arXiv, PyPI) share a single synchronous execution thread"
+    },
+    "transferable_design": {
+      "mechanism": "Isolate independent external data sources into separate non-blocking asyncio streams with per-stream timeouts; a slow arXiv response never stalls GitHub fetching.",
+      "mapping_table": [
+        {"source_primitive": "sctp_independent_stream", "target_repo_module": "parallel_discovery.py", "expected_effect": "GitHub, arXiv, and PyPI calls proceed independently"},
+        {"source_primitive": "primary_secondary_path", "target_repo_module": "api_clients.py", "expected_effect": "Partial timeout on one registry returns partial results without blocking others"}
+      ],
+      "expected_lift": "Cuts P99 tail latency by 40-60% under partial third-party API degradation",
+      "anti_pattern_warning": "Ensure partial stream failures are explicitly flagged in downstream confidence scores."
+    },
+    "evidence": {
+      "standard": "IETF RFC 4960 (Stream Control Transmission Protocol)",
+      "reference_url": "https://datatracker.ietf.org/doc/html/rfc4960",
+      "measurement_status": "ESTIMATED"
+    }
+  },
+  {
+    "pattern_id": "PAT-005",
+    "source_domain": "Telecom Signaling",
+    "canonical_mechanism": "Diameter Credit-Control Reservation (CCR/CCA Quotas)",
+    "problem_signature": {
+      "state_space": "concurrent_subagent_execution",
+      "bottleneck_type": "budget_race_condition",
+      "failure_mode": "parallel_branches_exceed_total_quota",
+      "consistency_model": "reservation_based"
+    },
+    "trigger_condition": {
+      "detected_when": "parallel agents consume shared rate limits or token pools without pre-allocation"
+    },
+    "transferable_design": {
+      "mechanism": "Reserve discrete quota slices (max API calls/tokens) per parallel branch before execution; each branch signals quota exhaustion before triggering hard failures.",
+      "mapping_table": [
+        {"source_primitive": "granted_service_units", "target_repo_module": "orchestrator.py", "expected_effect": "Pre-allocates token budgets to each of the 4 discovery lanes"},
+        {"source_primitive": "final_unit_indication", "target_repo_module": "subagent_base.py", "expected_effect": "Gracefully truncates output rather than hard-failing on budget exhaustion"}
+      ],
+      "expected_lift": "Guarantees 100% adherence to hard execution time and cost SLAs",
+      "anti_pattern_warning": "Avoid overly small slice reservations that force premature truncation on complex inputs."
+    },
+    "evidence": {
+      "standard": "IETF RFC 8506 (Diameter Credit-Control Application)",
+      "reference_url": "https://datatracker.ietf.org/doc/html/rfc8506",
+      "measurement_status": "ESTIMATED"
+    }
+  },
+  {
+    "pattern_id": "PAT-006",
+    "source_domain": "Distributed Systems",
+    "canonical_mechanism": "N-Version Programming & Byzantine Quorum Weighting",
+    "problem_signature": {
+      "state_space": "multi_agent_consensus",
+      "bottleneck_type": "common_mode_failure",
+      "failure_mode": "correlated_model_hallucinations",
+      "consistency_model": "quorum"
+    },
+    "trigger_condition": {
+      "detected_when": "multiple LLM judges or critic agents evaluate outputs using identical base model weights"
+    },
+    "transferable_design": {
+      "mechanism": "Pair heterogeneous model families (Claude Sonnet + Amazon Nova) with a deterministic rule-based linter as a third vote; weight votes by historical precision rather than simple majority.",
+      "mapping_table": [
+        {"source_primitive": "diverse_software_version", "target_repo_module": "critic_panel.py", "expected_effect": "Eliminates common-mode hallucination blind spots across voting agents"},
+        {"source_primitive": "weighted_voter", "target_repo_module": "scoring_engine.py", "expected_effect": "Anchors composite score on historical calibration rather than raw model output"}
+      ],
+      "expected_lift": "Reduces false-positive validation errors by 30-50% vs. single-family voting",
+      "anti_pattern_warning": "Do not add extra model calls on low-stakes formatting steps where latency matters more than correctness."
+    },
+    "evidence": {
+      "standard": "N-Version Programming (Avizienis, IEEE TSE 1985)",
+      "reference_url": "https://ieeexplore.ieee.org/document/1642668",
+      "measurement_status": "ESTIMATED"
+    }
+  },
+  {
+    "pattern_id": "PAT-007",
+    "source_domain": "Distributed Systems",
+    "canonical_mechanism": "Saga Pattern with Compensating Transactions",
+    "problem_signature": {
+      "state_space": "multi_step_tool_execution",
+      "bottleneck_type": "partial_side_effect_corruption",
+      "failure_mode": "mid_workflow_tool_failure",
+      "consistency_model": "compensating_eventual"
+    },
+    "trigger_condition": {
+      "detected_when": "an agent executes mutating tool calls (writes files, opens PRs, updates DBs) across multiple steps"
+    },
+    "transferable_design": {
+      "mechanism": "Pair every mutating tool action with an explicit inverse compensating action pushed onto an undo stack before execution; on failure, replay the stack in reverse.",
+      "mapping_table": [
+        {"source_primitive": "local_transaction", "target_repo_module": "tool_executor.py", "expected_effect": "Logs every mutating action with its inverse before execution"},
+        {"source_primitive": "compensating_action", "target_repo_module": "rollback_handler.py", "expected_effect": "Automatically reverses partial writes on mid-chain failure"}
+      ],
+      "expected_lift": "Eliminates half-applied state corruption across multi-tool agent workflows",
+      "anti_pattern_warning": "Cannot undo irreversible external side effects like sending public emails; gate those behind explicit human approval."
+    },
+    "evidence": {
+      "standard": "Sagas (Garcia-Molina & Salem, ACM SIGMOD 1987)",
+      "reference_url": "https://dl.acm.org/doi/10.1145/38713.38742",
+      "measurement_status": "ESTIMATED"
+    }
+  },
+  {
+    "pattern_id": "PAT-008",
+    "source_domain": "Distributed Systems",
+    "canonical_mechanism": "Raft Lease-Based Leader Election & Fencing Tokens",
+    "problem_signature": {
+      "state_space": "collaborative_multi_agent_graph",
+      "bottleneck_type": "coordination_deadlock_and_duplication",
+      "failure_mode": "split_brain_task_execution",
+      "consistency_model": "linearizable_lease"
+    },
+    "trigger_condition": {
+      "detected_when": "peer agents dynamically delegate subtasks without a single authoritative coordinator"
+    },
+    "transferable_design": {
+      "mechanism": "Enforce a single time-bounded coordinator lease with monotonically increasing fencing tokens on shared state; any stale agent whose token is superseded must abort its write.",
+      "mapping_table": [
+        {"source_primitive": "term_fencing_token", "target_repo_module": "state_store.py", "expected_effect": "Rejects stale writes from agents that lost leadership mid-execution"},
+        {"source_primitive": "leader_lease", "target_repo_module": "orchestrator.py", "expected_effect": "Prevents duplicate task execution when two agents both believe they are coordinator"}
+      ],
+      "expected_lift": "Eliminates duplicate task execution and race conditions in parallel agent graphs",
+      "anti_pattern_warning": "Keep lease TTLs short (10-15s) in serverless environments to avoid long stalls on cold starts."
+    },
+    "evidence": {
+      "standard": "In Search of an Understandable Consensus Algorithm (Ongaro & Ousterhout, 2014)",
+      "reference_url": "https://raft.github.io/raft.pdf",
+      "measurement_status": "ESTIMATED"
+    }
+  },
+  {
+    "pattern_id": "PAT-009",
+    "source_domain": "Distributed Systems",
+    "canonical_mechanism": "State-Based CRDTs (Observed-Remove Set / LWW-Element-Set)",
+    "problem_signature": {
+      "state_space": "parallel_agent_memory_updates",
+      "bottleneck_type": "merge_conflicts",
+      "failure_mode": "lost_updates_during_fan_in",
+      "consistency_model": "strong_eventual"
+    },
+    "trigger_condition": {
+      "detected_when": "parallel discovery agents concurrently append findings, tags, or citations to a shared project profile"
+    },
+    "transferable_design": {
+      "mechanism": "Structure shared agent outputs as commutative, associative, idempotent merge sets (OR-Sets with unique causal tags); fan-in reducer merges without locks.",
+      "mapping_table": [
+        {"source_primitive": "join_semilattice_merge", "target_repo_module": "fan_in_reducer.py", "expected_effect": "Deterministic merge of all 4 discovery payloads with no lost findings"},
+        {"source_primitive": "unique_tag_causality", "target_repo_module": "citation_deduper.py", "expected_effect": "Deduplicates identical citations from multiple lanes automatically"}
+      ],
+      "expected_lift": "100% deterministic fan-in state convergence without distributed locks",
+      "anti_pattern_warning": "Avoid CRDTs when strict sequential ordering of mutations is required."
+    },
+    "evidence": {
+      "standard": "A Comprehensive Study of CRDTs (Shapiro et al., INRIA 2011)",
+      "reference_url": "https://hal.inria.fr/inria-00555588",
+      "measurement_status": "ESTIMATED"
+    }
+  },
+  {
+    "pattern_id": "PAT-010",
+    "source_domain": "Distributed Systems",
+    "canonical_mechanism": "Reactive Streams Pull-Based Backpressure",
+    "problem_signature": {
+      "state_space": "producer_consumer_streaming",
+      "bottleneck_type": "fast_producer_slow_llm_consumer",
+      "failure_mode": "oom_crash_or_queue_backlog",
+      "consistency_model": "bounded_buffer"
+    },
+    "trigger_condition": {
+      "detected_when": "a repo crawler or log ingestor pushes chunks faster than Bedrock synthesis can process them"
+    },
+    "transferable_design": {
+      "mechanism": "Switch from unbounded push ingestion to explicit demand-driven pull (request N chunks), bounding in-flight data to Lambda memory limits.",
+      "mapping_table": [
+        {"source_primitive": "subscription_request_n", "target_repo_module": "repo_scanner.py", "expected_effect": "Fetches only 40 salient files rather than streaming all 10,000"},
+        {"source_primitive": "bounded_drop_tail", "target_repo_module": "chunk_queue.py", "expected_effect": "Prevents OOM crashes on monorepos by capping buffer depth"}
+      ],
+      "expected_lift": "Stabilizes memory footprint under 512MB even on 10,000-file repositories",
+      "anti_pattern_warning": "Prioritize entry points and manifests before applying backpressure drops so critical files are never discarded."
+    },
+    "evidence": {
+      "standard": "Reactive Streams Specification (JVM / Akka Streams)",
+      "reference_url": "https://www.reactive-streams.org/",
+      "measurement_status": "ESTIMATED"
+    }
+  },
+  {
+    "pattern_id": "PAT-011",
+    "source_domain": "OS Kernels",
+    "canonical_mechanism": "Adaptive Replacement Cache (ARC) with Ghost Lists",
+    "problem_signature": {
+      "state_space": "agent_long_term_memory",
+      "bottleneck_type": "context_bloat_vs_amnesia",
+      "failure_mode": "evicting_recently_needed_context",
+      "consistency_model": "adaptive_lru_lfu"
+    },
+    "trigger_condition": {
+      "detected_when": "an agent maintains session memory or retrieval cache across multi-turn iterations"
+    },
+    "transferable_design": {
+      "mechanism": "Balance recency (T1) and frequency (T2) memory lists while keeping lightweight metadata-only ghost lists of recently evicted items; if an evicted item is referenced, restore it and double its retention half-life.",
+      "mapping_table": [
+        {"source_primitive": "ghost_eviction_directory", "target_repo_module": "memory_manager.py", "expected_effect": "Restores recently-evicted scan context when re-scan is triggered"},
+        {"source_primitive": "adaptive_p_parameter", "target_repo_module": "context_ranker.py", "expected_effect": "Automatically shifts cache policy toward recency or frequency based on access patterns"}
+      ],
+      "expected_lift": "Improves retrieval hit rate by 20-35% over fixed FIFO/LRU context windows",
+      "anti_pattern_warning": "Unnecessary for single-turn stateless scans; use only in multi-session AgentCore memory."
+    },
+    "evidence": {
+      "standard": "ARC: A Self-Tuning, Low Overhead Replacement Cache (Megiddo & Modha, USENIX FAST 2003)",
+      "reference_url": "https://www.usenix.org/conference/fast-03/arc-self-tuning-low-overhead-replacement-cache",
+      "measurement_status": "ESTIMATED"
+    }
+  },
+  {
+    "pattern_id": "PAT-012",
+    "source_domain": "OS Kernels",
+    "canonical_mechanism": "Write-Ahead Logging (WAL) with Idempotency Checkpoints",
+    "problem_signature": {
+      "state_space": "long_running_agent_pipeline",
+      "bottleneck_type": "transient_failure_recomputation",
+      "failure_mode": "re_running_expensive_llm_steps_on_retry",
+      "consistency_model": "durable_append_only"
+    },
+    "trigger_condition": {
+      "detected_when": "multi-stage agent workflows restart from scratch after a single downstream API timeout"
+    },
+    "transferable_design": {
+      "mechanism": "Persist each completed subagent payload atomically to DynamoDB/S3 keyed by deterministic content hash (sha256 of input + model version); on retry, skip completed stages and resume from the last checkpoint.",
+      "mapping_table": [
+        {"source_primitive": "wal_log_record", "target_repo_module": "checkpoint_store.py", "expected_effect": "Avoids re-running $0.003/1K-token Sonnet synthesis on transient timeouts"},
+        {"source_primitive": "redo_recovery", "target_repo_module": "step_runner.py", "expected_effect": "Resumes from last completed subagent rather than restarting the full workflow"}
+      ],
+      "expected_lift": "Cuts retry latency and token cost by 50-80% on transient network errors",
+      "anti_pattern_warning": "Include prompt/model version in checkpoint key so stale outputs are never replayed after a model upgrade."
+    },
+    "evidence": {
+      "standard": "ARIES: A Transaction Recovery Method (Mohan et al., ACM TODS 1992)",
+      "reference_url": "https://dl.acm.org/doi/10.1145/128765.128770",
+      "measurement_status": "ESTIMATED"
+    }
+  },
+  {
+    "pattern_id": "PAT-013",
+    "source_domain": "OS Kernels",
+    "canonical_mechanism": "Copy-on-Write (CoW) Speculative State Forking",
+    "problem_signature": {
+      "state_space": "code_and_config_refactoring",
+      "bottleneck_type": "destructive_speculative_edits",
+      "failure_mode": "broken_repo_state_after_failed_patch",
+      "consistency_model": "snapshot_isolation"
+    },
+    "trigger_condition": {
+      "detected_when": "an enhancement agent generates code patches or tests speculative architectural mutations"
+    },
+    "transferable_design": {
+      "mechanism": "Share immutable read-only base AST/file snapshots across parallel enhancement hypotheses and materialize a copy only when a mutation is confirmed valid.",
+      "mapping_table": [
+        {"source_primitive": "cow_page_table", "target_repo_module": "patch_sandbox.py", "expected_effect": "Zero-cost parallel exploration of multiple refactor strategies"},
+        {"source_primitive": "atomic_pointer_swap", "target_repo_module": "dossier_builder.py", "expected_effect": "Commits only the validated refactor path to DynamoDB"}
+      ],
+      "expected_lift": "Prevents broken refactor suggestions and cuts memory overhead by >70%",
+      "anti_pattern_warning": "Always validate generated code diffs with ast.parse before surfacing to the user."
+    },
+    "evidence": {
+      "standard": "UNIX Virtual Memory & ZFS Copy-on-Write Semantics",
+      "reference_url": "https://www.kernel.org/doc/html/latest/admin-guide/mm/index.html",
+      "measurement_status": "ESTIMATED"
+    }
+  },
+  {
+    "pattern_id": "PAT-014",
+    "source_domain": "OS Kernels",
+    "canonical_mechanism": "O(1) Priority Bitmap Scheduler with Starvation Aging",
+    "problem_signature": {
+      "state_space": "backlog_and_task_prioritization",
+      "bottleneck_type": "high_effort_tasks_starving_quick_wins",
+      "failure_mode": "unranked_or_unbounded_enhancement_lists",
+      "consistency_model": "priority_queue"
+    },
+    "trigger_condition": {
+      "detected_when": "an agent generates a flat list of improvements without separating high-leverage quick wins from long-horizon refactors"
+    },
+    "transferable_design": {
+      "mechanism": "Bucket tasks into discrete impact-to-effort priority queues using O(1) bitmask selection while applying aging bonuses to long-deferred items to prevent starvation.",
+      "mapping_table": [
+        {"source_primitive": "active_expired_bitarrays", "target_repo_module": "backlog_ranker.py", "expected_effect": "Surfaces 2-line quick wins above multi-week architectural rewrites"},
+        {"source_primitive": "dynamic_priority_bonus", "target_repo_module": "enhancement_agent.py", "expected_effect": "Prevents long-horizon improvements from being permanently buried"}
+      ],
+      "expected_lift": "Increases builder actionability by 2x via clear execution ordering",
+      "anti_pattern_warning": "Cap active backlog output at 5 items to prevent decision fatigue."
+    },
+    "evidence": {
+      "standard": "Linux Kernel O(1) Scheduler (Ingo Molnar, Linux 2.6)",
+      "reference_url": "https://www.kernel.org/doc/Documentation/scheduler/",
+      "measurement_status": "ESTIMATED"
+    }
+  },
+  {
+    "pattern_id": "PAT-015",
+    "source_domain": "OS Kernels",
+    "canonical_mechanism": "Slab Allocator (Pre-Warmed Structured Prompt/Schema Pools)",
+    "problem_signature": {
+      "state_space": "high_frequency_llm_schema_parsing",
+      "bottleneck_type": "json_schema_validation_retries",
+      "failure_mode": "malformed_llm_output_overhead",
+      "consistency_model": "pre_allocated_template"
+    },
+    "trigger_condition": {
+      "detected_when": "multiple subagents repeatedly construct, validate, and retry complex nested Pydantic JSON schemas per invocation"
+    },
+    "transferable_design": {
+      "mechanism": "Pre-compile strict Bedrock Tool-Use JSON schemas and reusable prompt caches per subagent role at module cold-start rather than rebuilding on each invocation.",
+      "mapping_table": [
+        {"source_primitive": "kmem_cache_slab", "target_repo_module": "bedrock_client.py", "expected_effect": "Eliminates per-invocation Pydantic schema rebuild overhead"},
+        {"source_primitive": "object_reuse", "target_repo_module": "schemas.py", "expected_effect": "Cuts prompt building latency by reusing pre-validated tool definitions"}
+      ],
+      "expected_lift": "Achieves >99.5% first-pass JSON schema compliance and reduces input token overhead",
+      "anti_pattern_warning": "Keep tool schemas flat (<=2 nesting levels) for smaller models like Nova Lite."
+    },
+    "evidence": {
+      "standard": "The Slab Allocator: An Object-Caching Kernel Memory Allocator (Bonwick, USENIX 1994)",
+      "reference_url": "https://www.usenix.org/legacy/publications/library/proceedings/bos94/bonwick.html",
+      "measurement_status": "ESTIMATED"
+    }
+  },
+  {
+    "pattern_id": "PAT-016",
+    "source_domain": "Control Theory",
+    "canonical_mechanism": "PID Controller with Integral Windup Clamping",
+    "problem_signature": {
+      "state_space": "iterative_self_refinement_loop",
+      "bottleneck_type": "prompt_or_code_over_correction",
+      "failure_mode": "oscillating_quality_across_iterations",
+      "consistency_model": "closed_loop_feedback"
+    },
+    "trigger_condition": {
+      "detected_when": "an agent iteratively rewrites code or scores based on critic feedback and swings from under-correction to over-correction"
+    },
+    "transferable_design": {
+      "mechanism": "Scale patch aggressiveness proportionally to current score error (P), dampen sudden rewrites via derivative term (D), and clamp integral accumulation to prevent windup overshoot.",
+      "mapping_table": [
+        {"source_primitive": "proportional_gain_kp", "target_repo_module": "refinement_controller.py", "expected_effect": "Scales refactor scope to current quality gap, not worst-case assumptions"},
+        {"source_primitive": "anti_windup_clamp", "target_repo_module": "critic_loop.py", "expected_effect": "Prevents catastrophic over-rewriting after a single harsh critic review"}
+      ],
+      "expected_lift": "Stabilizes iterative refinement convergence within 2 passes instead of 5+",
+      "anti_pattern_warning": "Disable derivative damping on the first pass when baseline error is large."
+    },
+    "evidence": {
+      "standard": "Astrom & Murray, Feedback Systems: An Introduction for Scientists and Engineers",
+      "reference_url": "https://fbswiki.org/",
+      "measurement_status": "ESTIMATED"
+    }
+  },
+  {
+    "pattern_id": "PAT-017",
+    "source_domain": "Control Theory",
+    "canonical_mechanism": "Schmitt Trigger Hysteresis (Dual-Threshold Dead-Band)",
+    "problem_signature": {
+      "state_space": "classification_and_routing_gates",
+      "bottleneck_type": "threshold_flapping",
+      "failure_mode": "inconsistent_verdicts_on_borderline_scores",
+      "consistency_model": "hysteretic_state"
+    },
+    "trigger_condition": {
+      "detected_when": "borderline similarity or collision scores (e.g. 0.81 vs 0.82) flip between GREEN and RED on successive identical inputs"
+    },
+    "transferable_design": {
+      "mechanism": "Replace single brittle cutoffs with dual upper/lower Schmitt Trigger thresholds: enter RED only above 0.88, exit RED only below 0.78; the dead-band between 0.78 and 0.88 maps to YELLOW.",
+      "mapping_table": [
+        {"source_primitive": "upper_lower_trip_points", "target_repo_module": "name_collision.py", "expected_effect": "Eliminates flickering GREEN/RED decisions on names with Jaro-Winkler ~0.82"},
+        {"source_primitive": "dead_band_zone", "target_repo_module": "scoring_engine.py", "expected_effect": "Produces stable YELLOW advisory rather than a hard block on ambiguous scores"}
+      ],
+      "expected_lift": "Reduces score jitter across identical re-scans to <1%",
+      "anti_pattern_warning": "Document both thresholds transparently in docs/SCORING_RUBRIC.md so judges can audit the logic."
+    },
+    "evidence": {
+      "standard": "IEEE Std 181 (Pulse Measurement and Analysis / Schmitt Trigger Hysteresis)",
+      "reference_url": "https://standards.ieee.org/ieee/IEEE-Std-181/",
+      "measurement_status": "ESTIMATED"
+    }
+  },
+  {
+    "pattern_id": "PAT-018",
+    "source_domain": "Control Theory",
+    "canonical_mechanism": "Kalman Filter Sensor Fusion (Deterministic + Probabilistic State Estimation)",
+    "problem_signature": {
+      "state_space": "hybrid_ast_and_llm_evaluation",
+      "bottleneck_type": "noisy_llm_self_grading",
+      "failure_mode": "uncalibrated_confidence_drift",
+      "consistency_model": "bayesian_state_estimate"
+    },
+    "trigger_condition": {
+      "detected_when": "combining high-variance LLM qualitative judgments with low-variance deterministic code metrics into a composite score"
+    },
+    "transferable_design": {
+      "mechanism": "Weight each signal source inversely to its measurement covariance: anchor 40% of the score on deterministic AST/test signals (low variance) and cap LLM rubric contribution at 60% (higher variance).",
+      "mapping_table": [
+        {"source_primitive": "measurement_covariance_r", "target_repo_module": "scoring_engine.py", "expected_effect": "Deterministic signals dominate when LLM rubric scores are contradictory"},
+        {"source_primitive": "kalman_gain_k", "target_repo_module": "confidence_calibrator.py", "expected_effect": "Blends AST and LLM scores with weights proportional to their historical reliability"}
+      ],
+      "expected_lift": "Makes composite scores reproducible and auditable under strict technical scrutiny",
+      "anti_pattern_warning": "Never let probabilistic LLM innovation exceed 60% of total composite weight."
+    },
+    "evidence": {
+      "standard": "A New Approach to Linear Filtering and Prediction Problems (Kalman, ASME 1960)",
+      "reference_url": "https://www.cs.unc.edu/~welch/kalman/media/pdf/Kalman1960.pdf",
+      "measurement_status": "ESTIMATED"
+    }
+  },
+  {
+    "pattern_id": "PAT-019",
+    "source_domain": "Operations Research",
+    "canonical_mechanism": "Bradley-Terry Pairwise Preference Ranking",
+    "problem_signature": {
+      "state_space": "multi_candidate_or_multi_judge_ranking",
+      "bottleneck_type": "absolute_scale_calibration_drift",
+      "failure_mode": "all_candidates_clustered_at_75_85",
+      "consistency_model": "relative_preference"
+    },
+    "trigger_condition": {
+      "detected_when": "an LLM ranks multiple enhancement options, competing repos, or hackathon submissions on absolute 1-10 Likert scales"
+    },
+    "transferable_design": {
+      "mechanism": "Replace absolute 1-10 Likert ratings with forced pairwise comparisons ('Which fix delivers higher ROI: A or B?') and compute global Bradley-Terry skill ratings with confidence intervals.",
+      "mapping_table": [
+        {"source_primitive": "pairwise_win_matrix", "target_repo_module": "backlog_ranker.py", "expected_effect": "Produces stable ranked backlog uncorrupted by LLM scale drift"},
+        {"source_primitive": "bradley_terry_mle", "target_repo_module": "competitor_ranker.py", "expected_effect": "Global ranking of competing repos with confidence intervals rather than raw scores"}
+      ],
+      "expected_lift": "Improves top-3 prioritization consistency by 40-60% over raw Likert scoring",
+      "anti_pattern_warning": "Limit pairwise comparisons to <=6 candidates (15 pairs max) to keep token overhead bounded."
+    },
+    "evidence": {
+      "standard": "Rank Analysis of Incomplete Block Designs (Bradley & Terry, Biometrika 1952)",
+      "reference_url": "https://www.jstor.org/stable/2334029",
+      "measurement_status": "ESTIMATED"
+    }
+  },
+  {
+    "pattern_id": "PAT-020",
+    "source_domain": "Operations Research",
+    "canonical_mechanism": "Minimum Cut-Set Bottleneck Targeting (Max-Flow Min-Cut)",
+    "problem_signature": {
+      "state_space": "system_architecture_dependency_dag",
+      "bottleneck_type": "scattered_low_impact_optimizations",
+      "failure_mode": "optimizing_non_critical_path_modules",
+      "consistency_model": "graph_flow"
+    },
+    "trigger_condition": {
+      "detected_when": "an architecture review suggests improvements across leaf utility modules rather than the central bottleneck edges"
+    },
+    "transferable_design": {
+      "mechanism": "Model the repo's AST import/call graph as a flow network from entry point to output sink; identify the minimum cut set (the smallest set of edges whose removal disconnects source from sink) and target enhancements there first.",
+      "mapping_table": [
+        {"source_primitive": "min_cut_bottleneck_edge", "target_repo_module": "ast_analyzer.py", "expected_effect": "Identifies the 1-2 files driving >75% of system reliability risk"},
+        {"source_primitive": "max_flow_capacity", "target_repo_module": "enhancement_agent.py", "expected_effect": "Concentrates the ranked backlog on critical-path modules, not leaf utilities"}
+      ],
+      "expected_lift": "Concentrates engineering effort on the 1-2 files driving >75% of system reliability",
+      "anti_pattern_warning": "Fall back to README architectural layers when dynamic dependency injection obscures the static call graph."
+    },
+    "evidence": {
+      "standard": "Maximal Flow Through a Network (Ford & Fulkerson, Canadian Journal of Math 1956)",
+      "reference_url": "https://www.rand.org/pubs/papers/P605.html",
+      "measurement_status": "ESTIMATED"
+    }
+  }
+]

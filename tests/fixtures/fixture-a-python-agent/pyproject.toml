@@ -1,0 +1,4 @@
+[project]
+name = "orbit-agents"
+version = "0.1.0"
+dependencies = ["pydantic>=2"]

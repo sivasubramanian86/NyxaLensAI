@@ -1,0 +1,86 @@
+name: NyxaLensAI CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    name: Lint, Tests + CDK Synth (Python 3.12)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install \
+            -r cdk/requirements.txt \
+            "pydantic>=2.0" \
+            "boto3>=1.39.8" \
+            "requests>=2.31" \
+            "httpx>=0.27" \
+            "numpy>=1.26" \
+            "opensearch-py>=2.4" \
+            "requests-aws4auth>=1.2" \
+            "aws-xray-sdk>=2.14" \
+            "jellyfish>=1.0" \
+            "metaphone>=0.6" \
+            "pytest>=8.0" \
+            "pytest-asyncio>=0.23" \
+            "pytest-mock>=3.14" \
+            "ruff>=0.4"
+
+      - name: Lint with ruff
+        run: ruff check lambdas/ data/ tests/
+
+      - name: Run unit tests
+        run: pytest tests/unit/ -v --tb=short
+
+      - name: Run integration tests
+        run: pytest tests/integration/ -v --tb=short
+
+      - name: Set up Node for CDK CLI
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Synthesize CDK stack
+        run: npx --yes aws-cdk@2 synth --app "python app.py"
+        working-directory: cdk
+
+  frontend-build:
+    name: Frontend Tests + Build (Node 20)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build Next.js frontend
+        working-directory: frontend
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: "https://placeholder.execute-api.us-east-1.amazonaws.com/prod"
+
+      - name: Run Jest tests
+        working-directory: frontend
+        run: npm test -- --ci

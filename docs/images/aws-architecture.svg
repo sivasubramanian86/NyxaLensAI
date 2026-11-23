@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1120" viewBox="0 0 1800 1120" role="img" aria-labelledby="title desc">
+  <title id="title">NyxaLensAI AWS architecture</title>
+  <desc id="desc">A browser-hosted Amplify frontend calls API Gateway and an API Lambda. Step Functions invokes an orchestrator, four parallel discovery Lambdas, and sequential synthesis. Bedrock, OpenSearch Serverless, GitHub and public registries provide model and search evidence; DynamoDB, S3, CloudWatch, and X-Ray store state and telemetry. AgentCore Memory is optional with DynamoDB fallback.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#526579"/></marker>
+    <marker id="arrowOrange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#e87924"/></marker>
+    <style>
+      .bg{fill:#f6f8fb}.title{font:700 34px Arial,sans-serif;fill:#16283d}.sub{font:16px Arial,sans-serif;fill:#526579}
+      .zone{fill:#fff;stroke:#c7d2df;stroke-width:2;rx:18}.zoneTitle{font:700 18px Arial,sans-serif;fill:#23384f;letter-spacing:.4px}
+      .node{fill:#fff;stroke:#8fa2b8;stroke-width:2;rx:12}.aws{fill:#fff8f1;stroke:#e87924;stroke-width:2;rx:12}.data{fill:#f1f7ff;stroke:#4b83bd;stroke-width:2;rx:12}.optional{fill:#faf7ff;stroke:#8b6bb2;stroke-width:2;stroke-dasharray:7 5;rx:12}
+      .head{font:700 16px Arial,sans-serif;fill:#172b42}.body{font:13px Arial,sans-serif;fill:#526579}.tiny{font:12px Arial,sans-serif;fill:#526579}
+      .flow{fill:none;stroke:#526579;stroke-width:2.5;marker-end:url(#arrow)}.model{fill:none;stroke:#e87924;stroke-width:2.5;marker-end:url(#arrowOrange)}.optionalFlow{fill:none;stroke:#8b6bb2;stroke-width:2;stroke-dasharray:7 6;marker-end:url(#arrow)}
+      .badge{fill:#e87924}.badgeText{font:700 10px Arial,sans-serif;fill:#fff;text-anchor:middle}
+    </style>
+  </defs>
+  <rect class="bg" width="1800" height="1120"/>
+  <text class="title" x="60" y="64">NyxaLensAI · AWS architecture</text>
+  <text class="sub" x="60" y="94">Evidence fan-out in parallel · synthesis and citation checks after fan-in</text>
+
+  <!-- Request path -->
+  <rect class="node" x="60" y="135" width="190" height="86"/>
+  <text class="head" x="82" y="169">Builder</text><text class="body" x="82" y="194">Repo URL or RFC</text>
+  <rect class="aws" x="310" y="135" width="210" height="86"/>
+  <circle class="badge" cx="336" cy="158" r="13"/><text class="badgeText" x="336" y="162">A</text>
+  <text class="head" x="359" y="164">AWS Amplify</text><text class="body" x="333" y="195">Next.js frontend · polling</text>
+  <rect class="aws" x="580" y="135" width="205" height="86"/>
+  <circle class="badge" cx="606" cy="158" r="13"/><text class="badgeText" x="606" y="162">A</text>
+  <text class="head" x="629" y="164">API Gateway</text><text class="body" x="603" y="195">REST · CORS</text>
+  <rect class="aws" x="845" y="135" width="220" height="86"/>
+  <circle class="badge" cx="871" cy="158" r="13"/><text class="badgeText" x="871" y="162">λ</text>
+  <text class="head" x="894" y="164">API Router Lambda</text><text class="body" x="868" y="195">Cache · status · badge</text>
+  <rect class="aws" x="1125" y="135" width="250" height="86"/>
+  <circle class="badge" cx="1151" cy="158" r="13"/><text class="badgeText" x="1151" y="162">SF</text>
+  <text class="head" x="1174" y="164">Step Functions</text><text class="body" x="1148" y="195">Standard · 45 s timeout</text>
+  <path class="flow" d="M250 178 H310"/><path class="flow" d="M520 178 H580"/><path class="flow" d="M785 178 H845"/><path class="flow" d="M1065 178 H1125"/>
+
+  <!-- Workflow region -->
+  <rect class="zone" x="60" y="270" width="1230" height="520"/>
+  <text class="zoneTitle" x="88" y="305">STEP FUNCTIONS WORKFLOW</text>
+  <rect class="aws" x="100" y="350" width="220" height="90"/>
+  <circle class="badge" cx="126" cy="374" r="13"/><text class="badgeText" x="126" y="378">λ</text>
+  <text class="head" x="149" y="380">Orchestrator</text><text class="body" x="123" y="409">Nova Lite · project profile</text>
+  <rect class="data" x="380" y="345" width="770" height="270"/>
+  <text class="zoneTitle" x="405" y="378">PARALLEL DISCOVERY · FOUR LANES</text>
+  <rect class="aws" x="410" y="405" width="335" height="78"/>
+  <circle class="badge" cx="435" cy="429" r="12"/><text class="badgeText" x="435" y="433">λ</text>
+  <text class="head" x="457" y="435">Repo Scanner</text><text class="body" x="433" y="462">GitHub tree · AST · manifests</text>
+  <rect class="aws" x="785" y="405" width="335" height="78"/>
+  <circle class="badge" cx="810" cy="429" r="12"/><text class="badgeText" x="810" y="433">λ</text>
+  <text class="head" x="832" y="435">Name Collision</text><text class="body" x="808" y="462">GitHub · PyPI · npm</text>
+  <rect class="aws" x="410" y="505" width="335" height="78"/>
+  <circle class="badge" cx="435" cy="529" r="12"/><text class="badgeText" x="435" y="533">λ</text>
+  <text class="head" x="457" y="535">Landscape Scout</text><text class="body" x="433" y="562">GitHub Search · arXiv</text>
+  <rect class="aws" x="785" y="505" width="335" height="78"/>
+  <circle class="badge" cx="810" cy="529" r="12"/><text class="badgeText" x="810" y="533">λ</text>
+  <text class="head" x="832" y="535">Analogy Engine</text><text class="body" x="808" y="562">Titan embeddings · hybrid retrieval</text>
+  <rect class="aws" x="625" y="665" width="370" height="90"/>
+  <circle class="badge" cx="652" cy="690" r="13"/><text class="badgeText" x="652" y="694">λ</text>
+  <text class="head" x="677" y="697">Enhancement + Citation + Score</text><text class="body" x="652" y="726">Claude Sonnet · deterministic grounding</text>
+  <path class="flow" d="M320 395 H380"/>
+  <path class="flow" d="M765 615 V665"/>
+  <path class="flow" d="M1130 445 H1220 V630 H995 V665"/>
+  <text class="tiny" x="1040" y="642">fan-in before synthesis</text>
+  <text class="tiny" x="100" y="485">Input classified</text>
+
+  <!-- Model and retrieval services -->
+  <rect class="zone" x="1330" y="270" width="410" height="520"/>
+  <text class="zoneTitle" x="1358" y="305">MODEL &amp; RETRIEVAL SERVICES</text>
+  <rect class="aws" x="1370" y="350" width="330" height="95"/>
+  <circle class="badge" cx="1396" cy="375" r="13"/><text class="badgeText" x="1396" y="379">BR</text>
+  <text class="head" x="1420" y="382">Amazon Bedrock</text><text class="body" x="1395" y="414">Nova Lite · Claude Sonnet · Titan v2</text>
+  <rect class="aws" x="1370" y="485" width="330" height="95"/>
+  <circle class="badge" cx="1396" cy="510" r="13"/><text class="badgeText" x="1396" y="514">OS</text>
+  <text class="head" x="1420" y="517">OpenSearch Serverless</text><text class="body" x="1395" y="549">systems-patterns-v1 · k-NN + BM25</text>
+  <rect class="node" x="1370" y="620" width="330" height="95"/>
+  <text class="head" x="1395" y="654">Local vector fallback</text><text class="body" x="1395" y="684">Precomputed embeddings · NumPy cosine</text>
+  <path class="model" d="M320 395 H350 V315 H1535 V350"/>
+  <path class="model" d="M1120 545 H1280 V397 H1370"/>
+  <path class="flow" d="M1120 545 H1260 V532 H1370"/>
+  <path class="flow" d="M1535 580 V620"/>
+  <path class="model" d="M810 665 V630 H1340 V397 H1370"/>
+
+  <!-- Persistence and observability -->
+  <rect class="zone" x="60" y="825" width="1680" height="225"/>
+  <text class="zoneTitle" x="88" y="860">STATE, EVIDENCE &amp; OPERATIONS</text>
+  <rect class="data" x="105" y="895" width="280" height="105"/>
+  <text class="head" x="132" y="932">Amazon DynamoDB</text><text class="body" x="132" y="963">Scan status · dossier · cache</text>
+  <rect class="data" x="425" y="895" width="280" height="105"/>
+  <text class="head" x="452" y="932">Amazon S3</text><text class="body" x="452" y="963">Raw evidence snapshot</text>
+  <rect class="optional" x="745" y="895" width="280" height="105"/>
+  <text class="head" x="772" y="932">AgentCore Memory</text><text class="body" x="772" y="963">Optional · DynamoDB fallback</text>
+  <rect class="data" x="1065" y="895" width="280" height="105"/>
+  <text class="head" x="1092" y="932">CloudWatch EMF</text><text class="body" x="1092" y="963">Duration · estimated tokens/cost</text>
+  <rect class="data" x="1385" y="895" width="280" height="105"/>
+  <text class="head" x="1412" y="932">AWS X-Ray</text><text class="body" x="1412" y="963">Lambda subsegments</text>
+  <path class="flow" d="M810 755 V810 H245 V895"/><path class="flow" d="M810 755 V810 H565 V895"/>
+  <path class="optionalFlow" d="M810 755 V810 H885 V895"/>
+  <path class="flow" d="M990 755 V805 H1205 V895"/><path class="flow" d="M990 755 V795 H1525 V895"/>
+  <text class="tiny" x="1340" y="1030">Orange arrows: Bedrock model calls · Dashed purple: optional native memory</text>
+</svg>

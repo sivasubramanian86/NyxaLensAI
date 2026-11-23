@@ -1,0 +1,43 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage/
+
+# CDK
+cdk/cdk.out/
+cdk/.env
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# AWS
+.env
+.env.local
+.env.*
+!.env.example
+*.pem
+*.log
+npm-debug.log*
+
+# Pre-computed local embeddings (large binary — do not commit)
+data/patterns_20_embedded.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
