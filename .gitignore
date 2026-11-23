@@ -33,6 +33,11 @@ npm-debug.log*
 # Pre-computed local embeddings (large binary — do not commit)
 data/patterns_20_embedded.json
 
+# Builder Center publication draft and editorial images (kept locally)
+docs/BUILDER_CENTER_ARTICLE.md
+docs/images/nyxalens-hero.png
+docs/images/cross-domain-pattern-transfer.png
+
 # IDE
 .vscode/
 .idea/

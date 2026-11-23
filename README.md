@@ -12,7 +12,7 @@ NyxaLensAI is an AWS based architectural review tool for public GitHub repositor
 
 The API starts a Step Functions execution. An orchestrator prepares a typed project profile, four discovery Lambdas run in parallel, and synthesis runs after discovery completes. The synthesis worker grounds citations against retrieved URLs, calculates deterministic score points, and persists the dossier. DynamoDB stores scan state and session memory; S3 stores raw evidence. Bedrock AgentCore Memory is optional and falls back to DynamoDB.
 
-The diagrams show the CDK design, not a deployed AWS environment. See the [Builder Center article](docs/BUILDER_CENTER_ARTICLE.md) for design details and implementation caveats.
+The diagram shows the CDK design, not a deployed AWS environment.
 
 ## Capabilities
 
@@ -129,7 +129,6 @@ Copyright © 2026 NyxaLensAI project owner. All rights reserved. This repository
 ## Further reading
 
 - [AWS deployment runbook](DEPLOYMENT.md)
-- [Builder Center technical article](docs/BUILDER_CENTER_ARTICLE.md)
 - [Nyxa Score rubric](docs/SCORING_RUBRIC.md)
 - [Security policy](SECURITY.md)
 - [Accessibility statement](ACCESSIBILITY.md)
