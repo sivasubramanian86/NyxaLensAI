@@ -55,3 +55,5 @@ Thumbs.db
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+cdk/cdk-outputs.json

@@ -26,7 +26,7 @@ export default function HomePage() {
 
   const submit = async () => {
     setError('');
-    if (!api) { setError('Set NEXT_PUBLIC_API_URL to your deployed API Gateway URL.'); return; }
+    if (!api) { setError('Live scanning is not enabled in this hosted demo. Open one of the precomputed demos below.'); return; }
     const input = tab === 'repo' ? { repo_url: repoUrl.trim() } : { rfc_text: rfcText.trim() };
     if (!Object.values(input)[0]) { setError(tab === 'repo' ? 'Enter a public GitHub repository URL.' : 'Write a short RFC or idea first.'); return; }
     setBusy(true);

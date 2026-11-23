@@ -335,6 +335,8 @@ class NyxaLensStack(Stack):
             rest_api_name="NyxaLensAPI-v1",
             handler=api_router_fn,
             proxy=False,
+            # The API is unauthenticated and each scan calls Bedrock, so cap the request rate.
+            deploy_options=apigw.StageOptions(throttling_rate_limit=2, throttling_burst_limit=5),
             default_cors_preflight_options=apigw.CorsOptions(
                 allow_origins=apigw.Cors.ALL_ORIGINS,
                 allow_methods=["GET", "POST", "OPTIONS"],
