@@ -222,7 +222,8 @@ class NyxaLensStack(Stack):
             ))
 
         def build_lambda(logical_id: str, folder: str,
-                         timeout_sec: int = 12, mem_mb: int = 512) -> _lambda.Function:
+                         timeout_sec: int = 12, mem_mb: int = 512,
+                         role: iam.IRole | None = None) -> _lambda.Function:
             return _lambda.Function(
                 self, logical_id,
                 runtime=_lambda.Runtime.PYTHON_3_12,
@@ -239,7 +240,7 @@ class NyxaLensStack(Stack):
                 timeout=Duration.seconds(timeout_sec),
                 memory_size=mem_mb,
                 tracing=_lambda.Tracing.ACTIVE,
-                role=agent_role,
+                role=role or agent_role,
                 environment=shared_env,
             )
 
@@ -310,7 +311,17 @@ class NyxaLensStack(Stack):
         )
 
         # ── 8. API Gateway: POST /scans, GET /scans/{id}, GET /badge/{id} ─
-        api_router_fn = build_lambda("ApiRouterFn", "api_router", 10)
+        # The router gets its own role. Sharing agent_role would create a cycle:
+        # agent_role policy -> state machine -> state machine role policy -> Lambdas -> agent_role.
+        api_role = iam.Role(
+            self, "NyxaApiRouterRole",
+            assumed_by=iam.ServicePrincipal("lambda.amazonaws.com"),
+            managed_policies=[
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AWSLambdaBasicExecutionRole"),
+                iam.ManagedPolicy.from_aws_managed_policy_name("AWSXRayDaemonWriteAccess"),
+            ],
+        )
+        api_router_fn = build_lambda("ApiRouterFn", "api_router", 10, role=api_role)
         api_router_fn.add_environment("STATE_MACHINE_ARN", state_machine.state_machine_arn)
         state_machine.grant_start_execution(api_router_fn)
         scans_table.grant_read_write_data(api_router_fn)

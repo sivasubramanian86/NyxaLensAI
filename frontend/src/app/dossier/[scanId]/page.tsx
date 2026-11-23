@@ -96,7 +96,7 @@ export default function DossierPage({ params }: { params: { scanId: string } }) 
 
           <section className="grid-auto" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))' }}>
             {dossier.analogies.length ? dossier.analogies.map(item => <AnalogyCard key={item.pattern_id} analogy={item} disclaimer={dossier.disclaimer} />) :
-              <div className="panel" style={{ padding: 22 }}><div className="eyebrow">Cross-domain patterns</div><p className="muted">No corpus match reached the 0.72 similarity threshold.</p></div>}
+              <div className="panel" style={{ padding: 22 }}><div className="eyebrow">Cross-domain patterns</div><p className="muted">No corpus match cleared the similarity threshold, so no analogy is shown rather than a weak one.</p></div>}
           </section>
 
           <KillKeepInjectMatrix items={dossier.kill_keep_inject} />

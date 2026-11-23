@@ -119,7 +119,8 @@ def lambda_handler(event: dict, context) -> dict:
     evidence["prior_scans"] = prior_scans
     if _ddb:
         _ddb.update_item(Key={"scan_id": event.get("scan_id", "unknown")},
-                         UpdateExpression="SET status = :status, stage = :stage, progress = :progress",
+                         UpdateExpression="SET #s = :status, stage = :stage, progress = :progress",
+                         ExpressionAttributeNames={"#s": "status"},
                          ExpressionAttributeValues={":status": "DISCOVERING", ":stage": "SYNTHESIZING", ":progress": 80})
     draft = invoke_sonnet_json(
         "Create a concise repo differentiation dossier. Cite only URLs present in the supplied evidence. "

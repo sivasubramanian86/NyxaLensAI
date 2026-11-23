@@ -20,6 +20,25 @@ LOCAL_EMBEDDED = _data_root / "patterns_20_embedded.json"
 AOSS_INDEX = os.environ.get("AOSS_INDEX", "systems-patterns-v1")
 
 
+# Raw Titan V2 cosine scores between a short query and these long pattern texts are low.
+# In four probe queries the best relevant match scored 0.29-0.34 and an off-topic query's
+# best match scored 0.23, so a 0.72 cutoff suppressed every analogy. This default is a
+# preliminary calibration, not a validated one. The AOSS score is a different, uncalibrated
+# scale and keeps its original cutoff.
+LOCAL_MIN_SIMILARITY = 0.25
+AOSS_MIN_SIMILARITY = 0.72
+
+
+def _threshold(used_aoss: bool) -> float:
+    override = os.environ.get("ANALOGY_MIN_SIMILARITY", "")
+    try:
+        if override:
+            return float(override)
+    except ValueError:
+        pass
+    return AOSS_MIN_SIMILARITY if used_aoss else LOCAL_MIN_SIMILARITY
+
+
 def _query_text(signature: dict) -> str:
     source = json.dumps(signature, sort_keys=True)
     try:
@@ -78,13 +97,16 @@ def lambda_handler(event: dict, context) -> dict:
     trace = start_span("analogy_engine", LITE_MODEL_ID + "+" + EMBED_MODEL_ID, profile["problem_signature"])
     query_text = _query_text(profile["problem_signature"])
     vector = embed(query_text)
+    used_aoss = bool(AOSS_ENDPOINT)
     try:
-        pairs = _aoss(vector, query_text) if AOSS_ENDPOINT else _local(vector)
+        pairs = _aoss(vector, query_text) if used_aoss else _local(vector)
     except Exception:
+        used_aoss = False
         pairs = _local(vector)
+    threshold = _threshold(used_aoss)
     matches = []
     for record, score in pairs:
-        if score < 0.72:
+        if score < threshold:
             continue
         record = {**record, "similarity_score": min(1.0, max(0.0, score))}
         matches.append(AnalogyMatch.model_validate(record).model_dump())

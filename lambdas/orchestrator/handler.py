@@ -23,10 +23,25 @@ def _extract(text: str, fallback_name: str) -> dict:
         "consistency_model). Use short technical phrases.\n\n" + text[:8000]
     )
     raw = invoke_lite(prompt, system="Return one JSON object only.", max_tokens=600)
-    try:
-        return json.loads(raw)
-    except (TypeError, json.JSONDecodeError):
+    parsed = _parse_json_object(raw)
+    if parsed is None:
         return {"project_name": fallback_name, "domain_keywords": [], "problem_signature": {}}
+    return parsed
+
+
+def _parse_json_object(raw: object) -> dict | None:
+    """Parse a model reply that may wrap its JSON in markdown fences or prose."""
+    if not isinstance(raw, str):
+        return None
+    text = raw.strip()
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end <= start:
+        return None
+    try:
+        value = json.loads(text[start:end + 1])
+    except json.JSONDecodeError:
+        return None
+    return value if isinstance(value, dict) else None
 
 
 def lambda_handler(event: dict, context) -> dict:

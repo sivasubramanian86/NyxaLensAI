@@ -14,8 +14,8 @@ def lambda_handler(event: dict, context) -> dict:
         error = event.get("failure", {})
         boto3.resource("dynamodb").Table(table_name).update_item(
             Key={"scan_id": scan_id},
-            UpdateExpression="SET #s = :status, stage = :stage, progress = :progress, error = :error",
-            ExpressionAttributeNames={"#s": "status"},
+            UpdateExpression="SET #s = :status, stage = :stage, progress = :progress, #e = :error",
+            ExpressionAttributeNames={"#s": "status", "#e": "error"},
             ExpressionAttributeValues={":status": "FAILED", ":stage": "FAILED", ":progress": 100,
                                       ":error": json.dumps(error, default=str)[:1000]},
         )

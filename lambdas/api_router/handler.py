@@ -8,6 +8,7 @@ import os
 import re
 import time
 import uuid
+from decimal import Decimal
 
 import boto3
 from boto3.dynamodb.conditions import Key
@@ -27,8 +28,16 @@ def _cors_headers() -> dict:
             "Access-Control-Allow-Methods": "GET,POST,OPTIONS"}
 
 
+def _json_default(value: object) -> object:
+    """DynamoDB returns numbers as Decimal, which json cannot serialize."""
+    if isinstance(value, Decimal):
+        return int(value) if value == value.to_integral_value() else float(value)
+    raise TypeError(f"Object of type {type(value).__name__} is not JSON serializable")
+
+
 def _response(status: int, body: dict) -> dict:
-    return {"statusCode": status, "headers": {**_cors_headers(), "Content-Type": "application/json"}, "body": json.dumps(body)}
+    return {"statusCode": status, "headers": {**_cors_headers(), "Content-Type": "application/json"},
+            "body": json.dumps(body, default=_json_default)}
 
 
 def _normalize(value: str) -> str:
