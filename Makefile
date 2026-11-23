@@ -26,7 +26,7 @@ bootstrap:
 		"pytest>=8.0" \
 		"pytest-asyncio>=0.23" \
 		"pytest-mock>=3.14" \
-		"ruff>=0.4"
+		"ruff==0.15.12"
 	cd frontend && npm install
 	@echo "Bootstrap complete."
 
