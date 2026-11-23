@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LivePollingStatus } from '@/components/LivePollingStatus';
+import { AppHeader } from '@/components/AppHeader';
 import { AnalogyCard, BadgeSnippet, Dossier, EnhancementBacklog, KillKeepInjectMatrix, MermaidDiagram, NyxaScoreCard, PipelineTracePanel, ReScanButton, TrafficLight } from '@/components/DossierParts';
 import demoPython from '../../../../../tests/fixtures/fixture-a-python-agent/dossier.json';
 import demoTypeScript from '../../../../../tests/fixtures/fixture-b-typescript-app/dossier.json';
@@ -45,56 +46,79 @@ export default function DossierPage({ params }: { params: { scanId: string } }) 
   const rescanComplete = useCallback(() => router.replace('/dossier/' + rescanId), [router, rescanId]);
   const rescanFailed = useCallback((message: string) => setError(message), []);
   const startRescan = (id: string) => setRescanId(id);
+  const isDemo = !!demos[scanId];
 
-  return <main className="shell" style={{ paddingTop: 34, paddingBottom: 64 }}>
-    <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
-      <a href="/" style={{ textDecoration: 'none' }}><span className="eyebrow">← NYXA / DOSSIER</span></a>
-      <span className="mono muted" style={{ fontSize: 12 }}>{scanId}</span>
-    </header>
-    {rescanId && <LivePollingStatus scanId={rescanId} onCompleted={rescanComplete} onFailure={rescanFailed} />}
-    {!dossier && !error && <div className="panel muted" style={{ padding: 22 }}>Loading dossier…</div>}
-    {error && <p role="alert" style={{ color: '#fda4af' }}>{error}</p>}
-    {dossier && <>
-      <nav aria-label="Dossier views" style={{ display: 'flex', gap: 10, marginBottom: 22 }}>
-        <button className={activeTab === 'overview' ? 'button button-primary' : 'button'} onClick={() => setActiveTab('overview')}>Overview</button>
-        <button className={activeTab === 'trace' ? 'button button-primary' : 'button'} onClick={() => setActiveTab('trace')}>Pipeline Trace</button>
-      </nav>
-      {activeTab === 'trace' ? <PipelineTracePanel traces={dossier.pipeline_trace ?? []} /> : <>
-      <section style={{ marginBottom: 22 }}>
-        <div className="eyebrow">Architectural differentiation map</div>
-        <h1 style={{ fontSize: 'clamp(32px, 5vw, 54px)', letterSpacing: '-.04em', margin: '8px 0' }}>{dossier.project_profile.project_name}</h1>
-        <p className="muted">{demos[scanId] ? 'Precomputed offline demo' : 'Evidence-backed comparison'} · {dossier.verified_citations_count} citations verified</p>
-      </section>
-      <div className="grid-auto" style={{ alignItems: 'start' }}>
-        <TrafficLight value={dossier.name_collision.traffic_light}
-          matches={[...dossier.name_collision.exact_matches, ...dossier.name_collision.fuzzy_matches, ...dossier.name_collision.phonetic_matches]}
-          alternatives={dossier.name_collision.safe_alternatives} />
-        <NyxaScoreCard score={dossier.nyxa_score} verified={dossier.verified_citations_count}
-          stripped={dossier.stripped_hallucinations_count} delta={scoreDelta} />
-      </div>
-      <section style={{ marginTop: 18 }} className="grid-auto">
-        {dossier.analogies.length ? dossier.analogies.map(item => <AnalogyCard key={item.pattern_id} analogy={item} disclaimer={dossier.disclaimer} />) :
-          <div className="panel" style={{ padding: 20 }}><div className="eyebrow">Cross-domain patterns</div><p className="muted">No corpus match reached the 0.72 similarity threshold.</p></div>}
-        <section className="panel" style={{ padding: 20 }}>
-          <div className="eyebrow">Landscape scout</div>
-          {dossier.landscape.direct_competitors.length ? dossier.landscape.direct_competitors.map(repo => <article key={repo.url} style={{ paddingTop: 12 }}>
-            <a href={repo.url} target="_blank" rel="noreferrer">{repo.name} ↗</a><div className="muted" style={{ fontSize: 12 }}>{repo.stars ?? 0} stars · {repo.limitations || 'No limitations section found.'}</div>
-          </article>) : <p className="muted">No public competitors returned for this query.</p>}
+  return <>
+    <AppHeader right={<><span className="pill mono" title="Scan id">{scanId}</span><a className="button" href="/" style={{ padding: '7px 14px', textDecoration: 'none', fontSize: 14 }}>+ New scan</a></>} />
+    <main className="shell" style={{ paddingTop: 36, paddingBottom: 72 }}>
+      {rescanId && <LivePollingStatus scanId={rescanId} onCompleted={rescanComplete} onFailure={rescanFailed} />}
+      {!dossier && !error && <div className="stack" aria-busy="true">
+        <div className="panel shimmer" style={{ height: 120 }} />
+        <div className="grid-2"><div className="panel shimmer" style={{ height: 320 }} /><div className="panel shimmer" style={{ height: 320 }} /></div>
+        <span className="muted" style={{ fontSize: 13 }}>Loading dossier…</span>
+      </div>}
+      {error && <p role="alert" className="panel" style={{ color: '#fda4af', padding: 18 }}>{error}</p>}
+      {dossier && <>
+        <section style={{ marginBottom: 26 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+            <span className="pill pill-cyan">Architectural differentiation map</span>
+            <span className="pill">{isDemo ? 'Precomputed offline demo' : 'Evidence-backed comparison'}</span>
+            <span className="pill pill-green">✓ {dossier.verified_citations_count} citations verified</span>
+            {dossier.stripped_hallucinations_count > 0 && <span className="pill pill-amber">{dossier.stripped_hallucinations_count} unverified removed</span>}
+          </div>
+          <h1 className="gradient-text" style={{ fontSize: 'clamp(36px, 5.5vw, 62px)', letterSpacing: '-.045em', lineHeight: 1.04, fontWeight: 800, paddingBottom: 4 }}>{dossier.project_profile.project_name}</h1>
+          <div className="seg" role="tablist" aria-label="Dossier views" style={{ marginTop: 22 }}>
+            <button className={activeTab === 'overview' ? 'button active' : 'button'} onClick={() => setActiveTab('overview')}>Overview</button>
+            <button className={activeTab === 'trace' ? 'button active' : 'button'} onClick={() => setActiveTab('trace')}>Pipeline Trace</button>
+          </div>
         </section>
-      </section>
-      <section style={{ marginTop: 18 }}><KillKeepInjectMatrix items={dossier.kill_keep_inject} /></section>
-      <section style={{ marginTop: 18 }}><div className="eyebrow" style={{ marginBottom: 8 }}>Before / after architecture</div><MermaidDiagram source={dossier.mermaid_before_after} /></section>
-      <section className="grid-auto" style={{ marginTop: 18, alignItems: 'start' }}>
-        <EnhancementBacklog items={dossier.ranked_backlog} />
-        <div style={{ display: 'grid', gap: 14 }}>
-          {!demos[scanId] && <BadgeSnippet scanId={scanId} />}
-          {!demos[scanId] && <section className="panel" style={{ padding: 18 }}>
-            <div className="eyebrow">Next iteration</div><p className="muted" style={{ fontSize: 13 }}>Apply backlog items, then compare a fresh scan against this score.</p>
-            <ReScanButton scanId={scanId} onStarted={startRescan} />
-          </section>}
-        </div>
-      </section>
+
+        {activeTab === 'trace' ? <PipelineTracePanel traces={dossier.pipeline_trace ?? []} /> : <div className="stack">
+          <div className="grid-2">
+            <div className="stack">
+              <TrafficLight value={dossier.name_collision.traffic_light}
+                matches={[...dossier.name_collision.exact_matches, ...dossier.name_collision.fuzzy_matches, ...dossier.name_collision.phonetic_matches]}
+                alternatives={dossier.name_collision.safe_alternatives} />
+              <section className="panel" style={{ padding: 22 }}>
+                <div className="section-title"><div className="eyebrow">Landscape scout</div><span className="pill mono">{dossier.landscape.direct_competitors.length} found</span></div>
+                {dossier.landscape.direct_competitors.length ? dossier.landscape.direct_competitors.map(repo => <article key={repo.url} className="inset" style={{ padding: 14, marginTop: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+                    <a href={repo.url} target="_blank" rel="noreferrer" style={{ fontWeight: 700 }}>{repo.name} ↗</a>
+                    <span className="pill pill-amber">★ {(repo.stars ?? 0).toLocaleString()}</span>
+                  </div>
+                  <div className="muted" style={{ fontSize: 13, marginTop: 8, lineHeight: 1.5 }}>{repo.limitations || 'No limitations section found.'}</div>
+                </article>) : <p className="muted">No public competitors returned for this query.</p>}
+              </section>
+            </div>
+            <NyxaScoreCard score={dossier.nyxa_score} verified={dossier.verified_citations_count}
+              stripped={dossier.stripped_hallucinations_count} delta={scoreDelta} />
+          </div>
+
+          <section className="grid-auto" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))' }}>
+            {dossier.analogies.length ? dossier.analogies.map(item => <AnalogyCard key={item.pattern_id} analogy={item} disclaimer={dossier.disclaimer} />) :
+              <div className="panel" style={{ padding: 22 }}><div className="eyebrow">Cross-domain patterns</div><p className="muted">No corpus match reached the 0.72 similarity threshold.</p></div>}
+          </section>
+
+          <KillKeepInjectMatrix items={dossier.kill_keep_inject} />
+
+          <section><div className="section-title"><div className="eyebrow">Before / after architecture</div></div><MermaidDiagram source={dossier.mermaid_before_after} /></section>
+
+          <section className="grid-2">
+            <EnhancementBacklog items={dossier.ranked_backlog} />
+            <div className="stack">
+              {!isDemo && <BadgeSnippet scanId={scanId} />}
+              {!isDemo && <section className="panel" style={{ padding: 22 }}>
+                <div className="eyebrow">Next iteration</div><p className="muted" style={{ fontSize: 13 }}>Apply backlog items, then compare a fresh scan against this score.</p>
+                <ReScanButton scanId={scanId} onStarted={startRescan} />
+              </section>}
+              {isDemo && <section className="panel" style={{ padding: 22 }}>
+                <div className="eyebrow">About this demo</div>
+                <p className="muted" style={{ fontSize: 13, lineHeight: 1.6 }}>This dossier is stored sample data. Live scans, badges and re-scan deltas need the AWS backend.</p>
+              </section>}
+            </div>
+          </section>
+        </div>}
       </>}
-    </>}
-  </main>;
+    </main>
+  </>;
 }

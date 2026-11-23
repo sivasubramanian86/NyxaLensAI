@@ -48,20 +48,19 @@ export function LivePollingStatus({ scanId, onCompleted, onFailure }: Props) {
   }, [scanId, onCompleted, onFailure]);
 
   return (
-    <section aria-live="polite" className="panel" style={{ padding: 20, marginTop: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-        <div><div className="eyebrow">Live scan</div><div className="mono" style={{ marginTop: 5 }}>{scan.status}</div></div>
-        <div className="mono" style={{ color: '#38BDF8' }}>{scan.progress ?? 0}%</div>
+    <section aria-live="polite" className="panel" style={{ padding: 22, marginTop: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
+        <div><div className="eyebrow">Live scan</div><div className="mono" style={{ marginTop: 6 }}>{scan.status}</div></div>
+        <div className="mono gradient-text" style={{ fontSize: 28, fontWeight: 800 }}>{scan.progress ?? 0}%</div>
       </div>
-      <div style={{ height: 5, background: '#263244', borderRadius: 9, margin: '14px 0 18px' }}>
-        <div style={{ width: (scan.progress ?? 0) + '%', height: '100%', background: '#38BDF8', borderRadius: 9, transition: 'width .3s' }} />
-      </div>
-      <div className="grid-auto">
+      <div className="bar" style={{ margin: '14px 0 18px' }}><span style={{ width: (scan.progress ?? 0) + '%', transition: 'width .4s ease' }} /></div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
         {stages.map(([key, label], index) => {
           const done = scan.completed_subagents?.[key];
-          return <div key={key} className="mono muted" style={{ fontSize: 12 }}>
-            {done ? '[✓]' : index === 4 && scan.status === 'SYNTHESIZING' ? '[⚡]' : '[·]'} {label}
-          </div>;
+          const working = !done && index === 4 && scan.status === 'SYNTHESIZING';
+          return <span key={key} className={'pill ' + (done ? 'pill-green' : working ? 'pill-cyan' : '')}>
+            <span aria-hidden="true">{done ? '✓' : working ? '⚡' : '·'}</span> {label}
+          </span>;
         })}
       </div>
     </section>

@@ -20,13 +20,26 @@ export type Dossier = {
   disclaimer: string; score_delta?: number | null; pipeline_trace?: { subagent: string; duration_ms: number; model_id: string; input_tokens: number; output_tokens: number; estimated_usd: number; citations_verified: number; citations_stripped: number }[];
 };
 
+const LIGHT = {
+  RED: { color: '#fb7185', pill: 'pill-rose', note: 'High collision risk. Pick a different name.' },
+  YELLOW: { color: '#fbbf24', pill: 'pill-amber', note: 'Similar names exist. Differentiate before launch.' },
+  GREEN: { color: '#4ade80', pill: 'pill-green', note: 'No close matches found in the registries checked.' },
+} as const;
+
 export function TrafficLight({ value, matches, alternatives }: { value: 'RED' | 'YELLOW' | 'GREEN'; matches: string[]; alternatives: string[] }) {
-  const colors = { RED: '#fb7185', YELLOW: '#fbbf24', GREEN: '#4ade80' };
-  return <section className="panel" style={{ padding: 20, borderColor: colors[value] }}>
-    <div className="eyebrow">Name collision</div>
-    <h2 style={{ color: colors[value], margin: '10px 0' }}>{value}</h2>
-    <p className="muted">Public registry matches: {matches.length ? matches.join(', ') : 'none found'}</p>
-    <div className="muted" style={{ fontSize: 13 }}>Safe alternatives: {alternatives.join(' · ') || 'none suggested'}</div>
+  const tone = LIGHT[value];
+  return <section className="panel" style={{ padding: 22, boxShadow: '0 1px 0 rgba(255,255,255,.10) inset, 0 24px 60px -28px rgba(0,0,0,.75), 0 0 0 1px ' + tone.color + '33, 0 0 40px -12px ' + tone.color + '55' }}>
+    <div className="section-title"><div className="eyebrow">Name collision</div><span className={'pill ' + tone.pill}>GitHub · PyPI · npm</span></div>
+    <h2 style={{ color: tone.color, display: 'flex', alignItems: 'center', gap: 12, fontSize: 34, letterSpacing: '-.03em' }}><span className="dot" aria-hidden="true" style={{ width: 14, height: 14 }} />{value}</h2>
+    <p className="muted" style={{ margin: '8px 0 14px', fontSize: 14 }}>{tone.note}</p>
+    <div className="muted" style={{ fontSize: 12, marginBottom: 8, letterSpacing: '.06em', textTransform: 'uppercase' }}>Public registry matches</div>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+      {matches.length ? matches.map(match => <span key={match} className="pill pill-rose mono">{match}</span>) : <span className="pill pill-green">none found</span>}
+    </div>
+    <div className="muted" style={{ fontSize: 12, marginBottom: 8, letterSpacing: '.06em', textTransform: 'uppercase' }}>Safe alternatives</div>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {alternatives.length ? alternatives.map(name => <span key={name} className="pill pill-cyan">{name}</span>) : <span className="pill">none suggested</span>}
+    </div>
   </section>;
 }
 
@@ -35,53 +48,89 @@ const scoreDimensions: [keyof Score, string][] = [
   ['gap_opportunity', 'Gap opportunity'], ['enhancement_potential', 'Enhancement potential'], ['evidence_quality', 'Evidence quality'],
 ];
 
+function ScoreRing({ value, projected }: { value: number; projected: number }) {
+  const id = useId().replace(/:/g, '');
+  const r = 70; const c = 2 * Math.PI * r;
+  const arc = (v: number) => Math.max(0, Math.min(100, v)) / 100 * c + ' ' + c;
+  return <div className="ring-wrap" role="img" aria-label={'Nyxa score ' + value + ' out of 100, projected ' + projected}>
+    <svg viewBox="0 0 168 168">
+      <defs><linearGradient id={'g' + id} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#38bdf8" /><stop offset="1" stopColor="#8b5cf6" /></linearGradient></defs>
+      <circle cx="84" cy="84" r={r} fill="none" stroke="rgba(255,255,255,.08)" strokeWidth="12" />
+      <circle cx="84" cy="84" r={r} fill="none" stroke="rgba(167,139,250,.35)" strokeWidth="12" strokeLinecap="round" strokeDasharray={arc(projected)} />
+      <circle cx="84" cy="84" r={r} fill="none" stroke={'url(#g' + id + ')'} strokeWidth="12" strokeLinecap="round" strokeDasharray={arc(value)} style={{ filter: 'drop-shadow(0 0 8px rgba(56,189,248,.7))' }} />
+    </svg>
+    <div className="ring-center"><div className="ring-value">{value}</div><div className="ring-sub">out of 100</div></div>
+  </div>;
+}
+
 export function NyxaScoreCard({ score, verified, stripped, delta }: { score: Score; verified: number; stripped: number; delta?: number | null }) {
-  return <section className="panel" style={{ padding: 22 }}>
-    <div style={{ display: 'flex', alignItems: 'end', justifyContent: 'space-between', gap: 10 }}>
-      <div><div className="eyebrow">Nyxa score</div><div style={{ fontSize: 46, letterSpacing: '-.05em', marginTop: 5 }}>{score.composite}<span className="muted" style={{ fontSize: 20 }}>/100</span></div></div>
-      <div style={{ textAlign: 'right' }}><div className="muted" style={{ fontSize: 12 }}>Projected after backlog</div><strong style={{ color: '#38BDF8', fontSize: 22 }}>{score.projected_post_enhancement}/100</strong>{delta != null && <div className="mono" style={{ color: delta >= 0 ? '#4ade80' : '#fb7185' }}>{delta >= 0 ? '+' : ''}{delta} vs parent scan</div>}</div>
+  return <section className="panel" style={{ padding: 24 }}>
+    <div className="section-title"><div className="eyebrow">Nyxa score</div><span className="pill pill-cyan mono">Deterministic {score.deterministic_points}/40 · Rubric {score.rubric_points}/60</span></div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+      <ScoreRing value={score.composite} projected={score.projected_post_enhancement} />
+      <div style={{ flex: 1, minWidth: 190 }}>
+        <div className="muted" style={{ fontSize: 12, letterSpacing: '.06em', textTransform: 'uppercase' }}>Projected after backlog</div>
+        <div style={{ fontSize: 40, fontWeight: 800, letterSpacing: '-.04em' }} className="gradient-text">{score.projected_post_enhancement}<span style={{ fontSize: 18, fontWeight: 600 }}>/100</span></div>
+        {delta != null && <div className="mono" style={{ color: delta >= 0 ? '#4ade80' : '#fb7185', fontSize: 13 }}>{delta >= 0 ? '+' : ''}{delta} vs parent scan</div>}
+        <p className="muted" style={{ margin: '10px 0 0', fontSize: 14, lineHeight: 1.5 }}>{score.verdict}</p>
+      </div>
     </div>
-    <p className="muted">{score.verdict}</p>
-    <div style={{ display: 'grid', gap: 12, marginTop: 20 }}>
+    <div style={{ display: 'grid', gap: 13, marginTop: 24 }}>
       {scoreDimensions.map(([key, label]) => <div key={key}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 5 }}><span>{label}</span><span className="mono">{score[key]}/100</span></div>
-        <div style={{ height: 5, background: '#263244', borderRadius: 9 }}><div style={{ width: score[key] + '%', height: '100%', background: '#38BDF8', borderRadius: 9 }} /></div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}><span>{label}</span><span className="mono muted">{score[key]}/100</span></div>
+        <div className="bar"><span style={{ width: score[key] + '%' }} /></div>
       </div>)}
     </div>
-    <div className="mono muted" style={{ fontSize: 12, marginTop: 18 }}>Deterministic {score.deterministic_points}/40 · Rubric {score.rubric_points}/60</div>
-    <details style={{ marginTop: 14 }}><summary style={{ cursor: 'pointer' }}>Citation verification</summary>
+    <details style={{ marginTop: 18 }}><summary style={{ cursor: 'pointer', fontSize: 14 }}>Citation verification</summary>
       <p className="muted" style={{ fontSize: 13 }}>Verified citations: {verified} · Removed unverified citations: {stripped}</p>
     </details>
   </section>;
 }
 
+const ACTION_BLURB = {
+  KILL: 'Nothing flagged for removal. No commodity code was identified in the evidence.',
+  KEEP: 'No unique core identified in the evidence.',
+  INJECT: 'No cross-domain pattern cleared the similarity threshold.',
+} as const;
+
 export function KillKeepInjectMatrix({ items }: { items: CitationItem[] }) {
-  return <section className="panel" style={{ padding: 20 }}>
-    <div className="eyebrow">Architecture triage</div>
-    <div className="grid-auto" style={{ marginTop: 15 }}>
-      {(['KILL', 'KEEP', 'INJECT'] as const).map(action => <div key={action} style={{ background: '#0b1220', padding: 14, borderRadius: 10 }}>
-        <h3 className="mono" style={{ color: action === 'KILL' ? '#fb7185' : action === 'KEEP' ? '#4ade80' : '#38BDF8', marginTop: 0 }}>{action}</h3>
-        {items.filter(item => item.action === action).map((item, i) => <article key={i} style={{ borderTop: '1px solid #263244', paddingTop: 10, marginTop: 10 }}>
-          <strong>{item.target_component}</strong><p className="muted" style={{ fontSize: 13 }}>{item.rationale}</p>
-          {item.citation_url && <a href={item.citation_url} target="_blank" rel="noreferrer">Verified source ↗</a>}
-        </article>)}
-      </div>)}
+  return <section className="panel" style={{ padding: 22 }}>
+    <div className="section-title"><div className="eyebrow">Architecture triage</div><span className="pill">Kill · Keep · Inject</span></div>
+    <div className="kki">
+      {(['KILL', 'KEEP', 'INJECT'] as const).map(action => {
+        const rows = items.filter(item => item.action === action);
+        return <div key={action} className="kki-col" data-action={action}>
+          <div className="kki-head"><h3>{action}</h3><span className="pill mono">{rows.length}</span></div>
+          {rows.map((item, i) => <article key={i} className="kki-item">
+            <strong>{item.target_component}</strong><p className="muted" style={{ fontSize: 13, margin: '6px 0 8px', lineHeight: 1.5 }}>{item.rationale}</p>
+            {item.citation_url && <a href={item.citation_url} target="_blank" rel="noreferrer" style={{ fontSize: 13 }}>Verified source ↗</a>}
+          </article>)}
+          {!rows.length && <p className="muted" style={{ fontSize: 13, margin: '10px 0 0', lineHeight: 1.5 }}>{ACTION_BLURB[action]}</p>}
+        </div>;
+      })}
     </div>
   </section>;
 }
 
 export function AnalogyCard({ analogy, disclaimer }: { analogy: Dossier['analogies'][number]; disclaimer: string }) {
-  return <section className="panel" style={{ padding: 20 }}>
-    <div className="eyebrow">Cross-domain pattern · {analogy.pattern_id} · {(analogy.similarity_score * 100).toFixed(0)}% match</div>
-    <h3 style={{ marginBottom: 6 }}>{analogy.canonical_mechanism}</h3>
-    <p className="muted">{analogy.source_domain} · {analogy.evidence.standard} · <a href={analogy.evidence.reference_url} target="_blank" rel="noreferrer">Reference ↗</a></p>
-    <p>{analogy.mechanism}</p>
-    <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-      <thead><tr><th align="left">Source primitive</th><th align="left">Repo module</th><th align="left">Expected effect</th></tr></thead>
+  return <section className="panel lift" style={{ padding: 22 }}>
+    <div className="section-title">
+      <div className="eyebrow">Cross-domain pattern · {analogy.pattern_id}</div>
+      <span className="pill pill-cyan mono">{(analogy.similarity_score * 100).toFixed(0)}% match</span>
+    </div>
+    <h3 style={{ fontSize: 22, letterSpacing: '-.02em', marginBottom: 8 }}>{analogy.canonical_mechanism}</h3>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+      <span className="pill">{analogy.source_domain}</span>
+      <span className="pill">{analogy.evidence.standard}</span>
+      <a className="pill pill-cyan" href={analogy.evidence.reference_url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>Reference ↗</a>
+    </div>
+    <p style={{ lineHeight: 1.6, margin: '0 0 12px' }}>{analogy.mechanism}</p>
+    <div style={{ overflowX: 'auto' }}><table className="table-glass">
+      <thead><tr><th>Source primitive</th><th>Repo module</th><th>Expected effect</th></tr></thead>
       <tbody>{analogy.mapping_table.map((row, i) => <tr key={i}><td>{row.source_primitive}</td><td className="mono">{row.target_repo_module}</td><td>{row.expected_effect}</td></tr>)}</tbody>
     </table></div>
-    <p style={{ color: '#fbbf24', fontSize: 13 }}>Watch for: {analogy.anti_pattern_warning}</p>
-    <p className="muted" style={{ fontSize: 12 }}>{disclaimer}</p>
+    <div className="callout" style={{ marginTop: 12 }}><span aria-hidden="true">⚠</span><span>Watch for: {analogy.anti_pattern_warning}</span></div>
+    <p className="muted" style={{ fontSize: 12, margin: '12px 0 0' }}>{disclaimer}</p>
   </section>;
 }
 
@@ -98,27 +147,43 @@ function MermaidRenderer({ source }: { source: string }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let active = true;
-    mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'dark' });
+    mermaid.initialize({
+      startOnLoad: false, securityLevel: 'strict', theme: 'base',
+      themeVariables: {
+        background: 'transparent', primaryColor: '#12304a', primaryBorderColor: '#38bdf8', primaryTextColor: '#e7eefb',
+        lineColor: '#7dd3fc', secondaryColor: '#241a4a', tertiaryColor: '#0b1220', fontFamily: 'Inter, system-ui, sans-serif', fontSize: '15px',
+      },
+    });
     mermaid.render('nyxa-' + id, source).then(result => { if (active) setSvg(result.svg); })
       .catch(() => { if (active) setFailed(true); });
     return () => { active = false; };
   }, [id, source]);
   if (failed) return <pre className="panel mono" style={{ padding: 16, whiteSpace: 'pre-wrap' }}>{source}</pre>;
-  return <div className="panel" aria-label="Before and after architecture diagram" style={{ overflowX: 'auto', padding: 12 }} dangerouslySetInnerHTML={{ __html: svg }} />;
+  return <div className="panel mermaid-wrap" aria-label="Before and after architecture diagram" dangerouslySetInnerHTML={{ __html: svg }} />;
 }
 
 export function MermaidDiagram({ source }: { source: string }) {
   return <MermaidBoundary source={source}><MermaidRenderer source={source} /></MermaidBoundary>;
 }
 
+const LEVEL_PILL: Record<string, string> = { LOW: 'pill-green', MEDIUM: 'pill-amber', HIGH: 'pill-rose', 'VERY HIGH': 'pill-rose' };
+const IMPACT_PILL: Record<string, string> = { LOW: '', MEDIUM: 'pill-cyan', HIGH: 'pill-cyan', 'VERY HIGH': 'pill-green' };
+
 export function EnhancementBacklog({ items }: { items: BacklogItem[] }) {
   const [checked, setChecked] = useState<Record<number, boolean>>({});
-  return <section className="panel" style={{ padding: 20 }}>
-    <div className="eyebrow">Build next</div>
-    {items.map(item => <label key={item.rank} style={{ display: 'flex', gap: 12, padding: '14px 0', borderBottom: '1px solid #263244' }}>
-      <input type="checkbox" checked={!!checked[item.rank]} onChange={e => setChecked({ ...checked, [item.rank]: e.target.checked })} />
-      <span><strong>{item.rank}. {item.title}</strong><span className="muted" style={{ display: 'block', fontSize: 13, marginTop: 4 }}>{item.description} · {item.effort} effort · {item.impact} impact</span>
-      {item.citation_url && <a href={item.citation_url} target="_blank" rel="noreferrer">Source ↗</a>}</span>
+  return <section className="panel" style={{ padding: 22 }}>
+    <div className="section-title"><div className="eyebrow">Build next</div><span className="pill mono">{Object.values(checked).filter(Boolean).length}/{items.length} done</span></div>
+    {items.map(item => <label key={item.rank} style={{ display: 'flex', gap: 14, padding: '16px 0', borderTop: '1px solid rgba(255,255,255,.07)', cursor: 'pointer' }}>
+      <input className="check" type="checkbox" checked={!!checked[item.rank]} onChange={e => setChecked({ ...checked, [item.rank]: e.target.checked })} />
+      <span style={{ flex: 1 }}>
+        <strong style={{ textDecoration: checked[item.rank] ? 'line-through' : 'none', opacity: checked[item.rank] ? .6 : 1 }}>{item.rank}. {item.title}</strong>
+        <span className="muted" style={{ display: 'block', fontSize: 13, margin: '5px 0 8px', lineHeight: 1.5 }}>{item.description}</span>
+        <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+          <span className={'pill ' + (LEVEL_PILL[item.effort] ?? '')}>{item.effort} effort</span>
+          <span className={'pill ' + (IMPACT_PILL[item.impact] ?? '')}>{item.impact} impact</span>
+          {item.citation_url && <a href={item.citation_url} target="_blank" rel="noreferrer" style={{ fontSize: 13 }}>Source ↗</a>}
+        </span>
+      </span>
     </label>)}
   </section>;
 }
@@ -126,9 +191,9 @@ export function EnhancementBacklog({ items }: { items: BacklogItem[] }) {
 export function BadgeSnippet({ scanId }: { scanId: string }) {
   const snippet = '![Nyxa Score](' + process.env.NEXT_PUBLIC_API_URL + '/badge/' + scanId + ')';
   const [copied, setCopied] = useState(false);
-  return <section className="panel" style={{ padding: 16 }}>
-    <div className="eyebrow">README badge</div><div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-      <code className="mono muted" style={{ overflowWrap: 'anywhere', flex: 1 }}>{snippet}</code>
+  return <section className="panel" style={{ padding: 18 }}>
+    <div className="eyebrow">README badge</div><div style={{ display: 'flex', gap: 10, marginTop: 12, alignItems: 'center' }}>
+      <code className="mono muted inset" style={{ overflowWrap: 'anywhere', flex: 1, padding: 10, fontSize: 12 }}>{snippet}</code>
       <button className="button" onClick={() => { void navigator.clipboard.writeText(snippet).then(() => setCopied(true)); }}>{copied ? 'Copied' : 'Copy'}</button>
     </div>
   </section>;
@@ -136,12 +201,12 @@ export function BadgeSnippet({ scanId }: { scanId: string }) {
 
 export function PipelineTracePanel({ traces }: { traces: NonNullable<Dossier['pipeline_trace']> }) {
   const longest = Math.max(1, ...traces.map(trace => trace.duration_ms));
-  return <section className="panel" style={{ padding: 20 }}>
-    <div className="eyebrow">Pipeline trace · {traces.length} stages</div>
-    {traces.map((trace, i) => <article key={i} style={{ padding: '15px 0', borderBottom: '1px solid #263244' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><strong>{trace.subagent}</strong><span className="mono">{trace.duration_ms} ms · ${trace.estimated_usd.toFixed(6)}</span></div>
-      <div style={{ height: 5, background: '#263244', borderRadius: 9, margin: '8px 0' }}><div style={{ width: Math.max(2, (trace.duration_ms / longest) * 100) + '%', height: '100%', background: '#38BDF8', borderRadius: 9 }} /></div>
-      <div className="mono muted" style={{ fontSize: 11, overflowWrap: 'anywhere' }}>{trace.model_id} · {trace.input_tokens} in / {trace.output_tokens} out · {trace.citations_verified} citations verified · {trace.citations_stripped} stripped</div>
+  return <section className="panel" style={{ padding: 22 }}>
+    <div className="section-title"><div className="eyebrow">Pipeline trace · {traces.length} stages</div></div>
+    {traces.map((trace, i) => <article key={i} style={{ padding: '16px 0', borderTop: '1px solid rgba(255,255,255,.07)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}><strong>{trace.subagent}</strong><span className="mono muted">{trace.duration_ms} ms · ${trace.estimated_usd.toFixed(6)}</span></div>
+      <div className="bar" style={{ margin: '10px 0' }}><span style={{ width: Math.max(2, (trace.duration_ms / longest) * 100) + '%' }} /></div>
+      <div className="mono muted" style={{ fontSize: 11.5, overflowWrap: 'anywhere' }}>{trace.model_id} · {trace.input_tokens} in / {trace.output_tokens} out · {trace.citations_verified} citations verified · {trace.citations_stripped} stripped</div>
     </article>)}
     {!traces.length && <p className="muted">No trace records attached to this scan.</p>}
   </section>;
